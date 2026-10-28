@@ -10,7 +10,10 @@ Zettelkasten colectivo: reflexiones privadas → ideas públicas y anónimas →
 
 El esquema está en [`supabase/001_esquema.sql`](supabase/001_esquema.sql).
 Para instalarlo: Supabase → **SQL Editor** → **New query** → pegar el archivo completo → **Run**.
-Se ejecuta una sola vez en un proyecto nuevo.
+Se ejecuta una sola vez en un proyecto nuevo. Después, en orden y una sola vez cada uno:
+
+1. `001_esquema.sql` — tablas, seguridad y vistas públicas
+2. `002_ideas_permanentes.sql` — las ideas públicas no se borran; si alguien borra su cuenta, quedan sin autor
 
 ## Futuro: Airtable
 
