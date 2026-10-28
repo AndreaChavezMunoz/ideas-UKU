@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Política de datos y privacidad · Ideas UKU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600;7..72,700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EDF0EE;
+    --surface: #F8FAF8;
+    --ink: #1E2A3A;
+    --muted: #556070;
+    --thread: #6E8B74;
+    --rule: #C9D2CC;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #151B22;
+      --surface: #1C232C;
+      --ink: #E3E8E4;
+      --muted: #9AA6B0;
+      --thread: #8FAE95;
+      --rule: #2E3842;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #151B22;
+    --surface: #1C232C;
+    --ink: #E3E8E4;
+    --muted: #9AA6B0;
+    --thread: #8FAE95;
+    --rule: #2E3842;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Literata", Georgia, "Times New Roman", serif;
+    font-size: 1.0625rem;
+    line-height: 1.7;
+  }
+  main {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 5rem;
+  }
+  header svg { display: block; width: 100%; max-width: 22rem; height: auto; margin-bottom: 1.75rem; }
+  h1 {
+    font-size: clamp(2rem, 6vw, 2.75rem);
+    line-height: 1.15;
+    font-weight: 700;
+    margin: 0 0 1rem;
+    letter-spacing: -0.01em;
+  }
+  .lead { font-size: 1.1875rem; margin: 0 0 0.75rem; }
+  .meta { color: var(--muted); font-size: 0.9375rem; margin: 0; }
+  section { margin-top: 2.75rem; }
+  h2 {
+    font-size: 1.375rem;
+    line-height: 1.3;
+    font-weight: 600;
+    margin: 0 0 0.75rem;
+    padding-left: 0.9rem;
+    border-left: 3px solid var(--thread);
+  }
+  p { margin: 0 0 1rem; }
+  ul, ol { margin: 0 0 1rem; padding-left: 1.4rem; }
+  li { margin-bottom: 0.5rem; }
+  strong { font-weight: 600; }
+  .table-wrap { overflow-x: auto; margin: 0 0 1rem; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    font-size: 0.96875rem;
+    line-height: 1.55;
+  }
+  th, td { text-align: left; vertical-align: top; padding: 0.7rem 0.85rem; border-bottom: 1px solid var(--rule); }
+  th { font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .fill { background: color-mix(in srgb, var(--thread) 22%, transparent); padding: 0 0.2em; border-radius: 3px; }
+  footer { margin-top: 3.5rem; padding-top: 1.25rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.9375rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg viewBox="0 0 352 64" role="img" aria-label="Ideas conectadas entre sí">
+      <g stroke="var(--thread)" stroke-width="1.5" fill="none" stroke-linecap="round">
+        <path d="M12 44 C 60 8, 96 8, 128 30"/>
+        <path d="M128 30 C 160 52, 196 54, 226 22"/>
+        <path d="M226 22 C 256 2, 300 18, 340 40"/>
+        <path d="M128 30 C 176 20, 240 46, 340 40"/>
+        <path d="M60 18 C 110 60, 200 60, 226 22"/>
+      </g>
+      <g fill="var(--ink)">
+        <circle cx="12" cy="44" r="4.5"/>
+        <circle cx="60" cy="18" r="3.5"/>
+        <circle cx="128" cy="30" r="5.5"/>
+        <circle cx="226" cy="22" r="5"/>
+        <circle cx="340" cy="40" r="4.5"/>
+      </g>
+    </svg>
+    <h1>Política de datos y privacidad</h1>
+    <p class="lead">Tus textos completos son privados, las ideas que eliges publicar aparecen sin tu nombre, y puedes pedir que borremos todo cuando quieras.</p>
+    <p class="meta">Versión 1, vigente desde el 27 de octubre de 2026</p>
+  </header>
+
+  <section>
+    <h2>Quiénes somos</h2>
+    <p>Ideas UKU es un espacio para escribir reflexiones sobre eventos, lecturas y otras fuentes de inspiración, y para conectar ideas entre personas.</p>
+    <p>El responsable de tus datos es <span class="fill">[Nombre completo del responsable]</span>, con correo de contacto <span class="fill">[correo@dominio]</span>.</p>
+  </section>
+
+  <section>
+    <h2>Qué datos guardamos</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Dato</th><th scope="col">Para qué sirve</th></tr></thead>
+        <tbody>
+          <tr><td>Tu correo electrónico</td><td>Iniciar sesión y escribirte solo sobre tu cuenta.</td></tr>
+          <tr><td>Tu nombre (opcional)</td><td>Saludarte y reconocerte como parte de la comunidad.</td></tr>
+          <tr><td>Tu fecha de cumpleaños (opcional)</td><td>Celebrar contigo y compartir momentos significativos en la comunidad.</td></tr>
+          <tr><td>Tus textos completos</td><td>Guardar tu reflexión y sacar ideas de ella.</td></tr>
+          <tr><td>Las ideas que publicas</td><td>Mostrarlas en el mapa compartido.</td></tr>
+          <tr><td>Las conexiones entre ideas</td><td>Dibujar el mapa y encontrar temas.</td></tr>
+          <tr><td>La fuente de cada texto (evento, lectura u otra) y su fecha</td><td>Ordenar las ideas y aplicar el plazo de edición.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>El nombre y el cumpleaños son opcionales y puedes borrarlos cuando quieras. Nunca se muestran junto a tus ideas ni a tus textos, y no se usan para relacionarte con lo que escribes. No pedimos tu DNI, teléfono ni otros datos personales.</p>
+  </section>
+
+  <section>
+    <h2>Qué es privado y qué es público</h2>
+    <p><strong>Privado:</strong> tu texto completo. Dentro de la app, solo tú puedes leerlo, desde tu cuenta.</p>
+    <p><strong>Público y anónimo:</strong> las ideas que tú eliges publicar, la fuente a la que pertenecen (por ejemplo, el nombre del evento) y las conexiones entre ideas. Aparecen sin tu nombre ni tu correo.</p>
+    <p>Tú decides si otras personas pueden conectar tus ideas con las suyas. Esta opción viene activada y puedes cambiarla en cada idea.</p>
+    <p>Ten en cuenta que, en un grupo pequeño, otra persona podría adivinar quién escribió una idea por su contenido o por quién asistió a un evento.</p>
+  </section>
+
+  <section>
+    <h2>Para qué usamos tus datos</h2>
+    <p>Usamos las ideas públicas y sus conexiones para encontrar temas recurrentes, proponer temas de conversación en futuros encuentros y crear contenidos propios, como video ensayos, que pueden inspirarse en algunas ideas.</p>
+    <p>Cuando usemos una idea en un contenido público, no diremos quién la escribió. Nunca publicaremos ni citaremos tu texto completo sin tu permiso expreso y por escrito.</p>
+    <p>No vendemos tus datos, no los usamos para publicidad y no los compartimos con nadie fuera de los proveedores que hacen funcionar la app.</p>
+  </section>
+
+  <section>
+    <h2>Uso de inteligencia artificial</h2>
+    <p>La app usa inteligencia artificial en dos momentos, y nunca para escribir por ti:</p>
+    <ol>
+      <li><strong>Sugerir ideas.</strong> Al terminar de escribir, la IA agrupa frases originales de tu texto según el tema y propone de 3 a 5 ideas, redactadas de forma breve y simple para que se entiendan. Tú eliges cuáles publicar y puedes editarlas antes.</li>
+      <li><strong>Nombrar temas.</strong> Cuando varias ideas públicas están conectadas, la IA sugiere un nombre para el tema que comparten. Para esto solo lee ideas públicas, nunca textos completos.</li>
+    </ol>
+    <p>Para sugerir ideas, tu texto se envía a Anthropic, el proveedor de la IA. Según sus términos para empresas, no usa esos datos para entrenar sus modelos.</p>
+  </section>
+
+  <section>
+    <h2>Quién puede ver tus datos</h2>
+    <p>Dentro de la app, nadie más que tú puede leer tu texto completo. Queremos ser transparentes sobre un límite: el administrador de la base de datos tiene acceso técnico a toda la información guardada, incluidos los textos completos y los correos.</p>
+    <p>El administrador se compromete a no leer textos completos ni relacionar ideas con personas, salvo que sea necesario para resolver un problema técnico o cumplir una obligación legal. Si eso ocurre alguna vez, te avisaremos.</p>
+  </section>
+
+  <section>
+    <h2>Proveedores y servidores fuera del Perú</h2>
+    <p>La app funciona con servicios externos que guardan o procesan tus datos en servidores ubicados fuera del Perú, principalmente en Estados Unidos. Al aceptar esta política, autorizas esta transferencia internacional.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">Proveedor</th><th scope="col">Qué hace</th></tr></thead>
+        <tbody>
+          <tr><td>Supabase</td><td>Guarda la base de datos y gestiona el inicio de sesión por correo.</td></tr>
+          <tr><td>Netlify</td><td>Aloja la página web.</td></tr>
+          <tr><td>Anthropic (Claude)</td><td>Sugiere ideas a partir de tu texto y nombra temas.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Edición, conservación y eliminación</h2>
+    <p>Puedes editar tu texto y tus ideas durante 7 días desde que los creas. Después quedan fijos, para conservar la reflexión tal como la viviste. Las conexiones entre ideas se pueden seguir creando en cualquier momento.</p>
+    <p>Guardamos tus datos mientras tengas una cuenta. Si pides borrar tu cuenta, eliminaremos tu correo, tu nombre, tu cumpleaños, tus textos completos y tus ideas en un plazo máximo de 30 días. Las ideas que ya inspiraron un contenido publicado no se pueden retirar de ese contenido, pero sí se borran del mapa.</p>
+  </section>
+
+  <section>
+    <h2>Tus derechos</h2>
+    <p>Según la Ley N.º 29733, Ley de Protección de Datos Personales del Perú, puedes en cualquier momento:</p>
+    <ul>
+      <li><strong>Acceder:</strong> pedir una copia de todos tus datos, incluidos tus textos completos.</li>
+      <li><strong>Rectificar:</strong> corregir datos que estén mal.</li>
+      <li><strong>Cancelar:</strong> pedir que borremos tus datos y tu cuenta.</li>
+      <li><strong>Oponerte:</strong> pedir que dejemos de usar tus ideas para algo concreto.</li>
+    </ul>
+    <p>Escríbenos a <span class="fill">[correo@dominio]</span> y responderemos en un plazo máximo de 10 días hábiles. Si no quedas conforme, puedes acudir a la Autoridad Nacional de Protección de Datos Personales del Ministerio de Justicia y Derechos Humanos.</p>
+  </section>
+
+  <section>
+    <h2>Cambios y aceptación</h2>
+    <p>Si cambiamos esta política, te avisaremos por correo antes de que el cambio aplique. Si no estás de acuerdo, podrás borrar tu cuenta.</p>
+    <p>Al crear tu cuenta, confirmas que leíste esta política y que aceptas el tratamiento de tus datos tal como se describe aquí.</p>
+  </section>
+
+  <footer>Los campos resaltados están pendientes de completar.</footer>
+</main>
+</body>
+</html>
