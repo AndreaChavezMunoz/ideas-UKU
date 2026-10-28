@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Escribir · Ideas UKU</title>
+<link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+<header class="nav"></header>
+<main>
+
+  <!-- Pantalla 1: fuente y reflexión -->
+  <form id="paso1">
+    <h1>Escribir una reflexión</h1>
+
+    <label for="fuente">¿Sobre qué escribes?</label>
+    <select id="fuente" required></select>
+
+    <div id="nueva-fuente" class="oculto">
+      <label for="f-nombre">Nombre de la fuente</label>
+      <input id="f-nombre" maxlength="200" placeholder="Ej.: Conversatorio sobre memoria">
+      <label for="f-tipo">Tipo</label>
+      <select id="f-tipo">
+        <option value="evento">Evento</option>
+        <option value="lectura">Lectura</option>
+        <option value="otra">Otra</option>
+      </select>
+      <label for="f-fecha">Fecha</label>
+      <input id="f-fecha" type="date">
+    </div>
+
+    <p class="aviso">Este es un espacio seguro para ti. Te recomendamos escribir con tus propias palabras y pensamientos, sin ayuda de inteligencia artificial: aquí lo que vale es tu voz. Tu texto completo es privado y solo tú puedes leerlo. Las ideas que elijas publicar aparecerán en el mapa sin tu nombre.</p>
+
+    <label for="texto">Tu reflexión</label>
+    <textarea id="texto" class="reflexion" required placeholder="Escribe libremente…"></textarea>
+
+    <div class="acciones"><button type="submit">Continuar</button></div>
+    <p id="error1" class="error oculto"></p>
+  </form>
+
+  <!-- Pantalla 2: elegir ideas -->
+  <section id="paso2" class="oculto">
+    <h1>Elige tus ideas</h1>
+    <p class="aviso">Recuerda que las ideas que selecciones serán públicas y otras personas podrán interactuar con ellas. Las frases de tu texto que aparecen debajo de cada idea también serán públicas.</p>
+    <p class="tenue">Tu texto ya quedó guardado en privado. Marca las ideas que quieres publicar; puedes editarlas o quitar frases.</p>
+
+    <p id="cargando-ia" class="tenue">Leyendo tu texto para proponer ideas…</p>
+    <p id="error-ia" class="error oculto"></p>
+    <div id="ideas"></div>
+
+    <div class="acciones">
+      <button type="button" class="secundario" id="idea-propia">+ Escribir una idea propia</button>
+    </div>
+    <div class="acciones">
+      <button type="button" id="publicar">Publicar ideas seleccionadas</button>
+      <button type="button" class="secundario" id="sin-publicar">Terminar sin publicar</button>
+    </div>
+    <p id="error2" class="error oculto"></p>
+  </section>
+
+  <!-- Final -->
+  <section id="listo" class="oculto">
+    <h1>Listo</h1>
+    <p id="listo-texto"></p>
+    <div class="acciones">
+      <a class="boton" href="mapa.html">Ver el mapa</a>
+      <a class="boton secundario" href="escribir.html">Escribir otra reflexión</a>
+    </div>
+  </section>
+</main>
+
+<script src="vendor/supabase-2.89.0.js"></script>
+<script type="module">
+import { sb, requerirMiembro, llamarFuncion, pintarNav, esc, fechaCorta, TIPOS } from './js/sesion.js';
+
+const $ = (id) => document.getElementById(id);
+pintarNav('escribir.html');
+await requerirMiembro();
+
+let textoBruto = null; // { id, fuente_id }
+
+// ---------- Pantalla 1 ----------
+const { data: fuentes } = await sb.from('fuentes').select('id,nombre,tipo,fecha')
+  .order('fecha', { ascending: false, nullsFirst: false }).order('creado_en', { ascending: false });
+$('fuente').innerHTML =
+  `<option value="" disabled selected>Elige una fuente…</option>` +
+  (fuentes || []).map((f) => `<option value="${f.id}">${esc(f.nombre)} · ${TIPOS[f.tipo]}${f.fecha ? ' · ' + fechaCorta(f.fecha) : ''}</option>`).join('') +
+  `<option value="nueva">+ Nueva fuente</option>`;
+$('fuente').onchange = () => {
+  const nueva = $('fuente').value === 'nueva';
+  $('nueva-fuente').classList.toggle('oculto', !nueva);
+  $('f-nombre').required = nueva;
+};
+
+async function obtenerFuenteId() {
+  if ($('fuente').value !== 'nueva') return $('fuente').value;
+  const nueva = { nombre: $('f-nombre').value.trim(), tipo: $('f-tipo').value, fecha: $('f-fecha').value || null };
+  const { data, error } = await sb.from('fuentes').insert(nueva).select('id').single();
+  if (!error) return data.id;
+  if (error.code === '23505') { // ya existía: usar esa
+    let q = sb.from('fuentes').select('id,nombre').eq('tipo', nueva.tipo);
+    q = nueva.fecha ? q.eq('fecha', nueva.fecha) : q.is('fecha', null);
+    const { data: existentes } = await q;
+    const igual = existentes?.find((f) => f.nombre.trim().toLowerCase() === nueva.nombre.toLowerCase());
+    if (igual) return igual.id;
+  }
+  throw error;
+}
+
+$('paso1').onsubmit = async (e) => {
+  e.preventDefault();
+  const boton = e.submitter; boton.disabled = true;
+  $('error1').classList.add('oculto');
+  try {
+    const fuente_id = await obtenerFuenteId();
+    const { data, error } = await sb.from('textos_brutos')
+      .insert({ fuente_id, texto: $('texto').value }).select('id,fuente_id').single();
+    if (error) throw error;
+    textoBruto = data;
+    $('paso1').classList.add('oculto');
+    $('paso2').classList.remove('oculto');
+    scrollTo(0, 0);
+    proponer($('texto').value);
+  } catch (err) {
+    $('error1').textContent = 'No se pudo guardar: ' + (err.message || err);
+    $('error1').classList.remove('oculto');
+    boton.disabled = false;
+  }
+};
+
+// ---------- Pantalla 2 ----------
+function tarjeta({ idea = '', frases = [] }) {
+  const el = document.createElement('div');
+  el.className = 'tarjeta';
+  el.innerHTML = `
+    <label class="check"><input type="checkbox" class="elegir"> <span>Publicar esta idea</span></label>
+    <textarea class="texto-idea" rows="3" maxlength="1000" placeholder="Escribe tu idea…">${esc(idea)}</textarea>
+    <ul class="frases">${frases.map((f) => `<li><span>“${esc(f)}”</span><button type="button" class="enlace quitar" aria-label="Quitar frase">✕</button></li>`).join('')}</ul>
+    <label class="check tenue"><input type="checkbox" class="conexiones" checked> <span>Permitir que otras personas conecten esta idea</span></label>`;
+  el.querySelector('.elegir').onchange = (e) => el.classList.toggle('elegida', e.target.checked);
+  el.querySelectorAll('.quitar').forEach((b) => (b.onclick = () => b.closest('li').remove()));
+  $('ideas').append(el);
+  return el;
+}
+
+async function proponer(texto) {
+  try {
+    const { ideas } = await llamarFuncion('proponer-ideas', { texto });
+    ideas.forEach(tarjeta);
+    if (!ideas.length) throw new Error('No encontramos ideas claras. Puedes escribirlas a mano.');
+  } catch (err) {
+    $('error-ia').textContent = err.message;
+    $('error-ia').classList.remove('oculto');
+  } finally {
+    $('cargando-ia').classList.add('oculto');
+  }
+}
+
+$('idea-propia').onclick = () => {
+  const el = tarjeta({});
+  el.querySelector('.elegir').click();
+  el.querySelector('textarea').focus();
+};
+
+$('publicar').onclick = async (e) => {
+  const filas = [...document.querySelectorAll('#ideas .tarjeta')]
+    .filter((el) => el.querySelector('.elegir').checked)
+    .map((el) => ({
+      texto_bruto_id: textoBruto.id,
+      fuente_id: textoBruto.fuente_id,
+      texto: el.querySelector('.texto-idea').value.trim(),
+      frases_originales: [...el.querySelectorAll('.frases li span')].map((s) => s.textContent.slice(1, -1)),
+      permite_conexiones: el.querySelector('.conexiones').checked,
+    }))
+    .filter((f) => f.texto);
+  if (!filas.length) {
+    $('error2').textContent = 'No marcaste ninguna idea. Si no quieres publicar, toca «Terminar sin publicar».';
+    return $('error2').classList.remove('oculto');
+  }
+  e.target.disabled = true;
+  const { error } = await sb.from('ideas').insert(filas);
+  if (error) {
+    e.target.disabled = false;
+    $('error2').textContent = 'No se pudo publicar: ' + error.message;
+    return $('error2').classList.remove('oculto');
+  }
+  terminar(`Publicaste ${filas.length} ${filas.length === 1 ? 'idea' : 'ideas'}. Puedes editarlas durante 7 días desde «Mis reflexiones».`);
+};
+
+$('sin-publicar').onclick = () => terminar('Tu reflexión quedó guardada en privado, en «Mis reflexiones».');
+
+function terminar(mensaje) {
+  $('paso2').classList.add('oculto');
+  $('listo').classList.remove('oculto');
+  $('listo-texto').textContent = mensaje;
+  scrollTo(0, 0);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mis reflexiones · Ideas UKU</title>
+<link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+<header class="nav"></header>
+<main>
+  <h1>Mis reflexiones</h1>
+  <p class="tenue">Solo tú puedes ver esta página. Los textos y las ideas se pueden editar durante 7 días.</p>
+  <div id="lista"><p class="tenue">Cargando…</p></div>
+</main>
+
+<script src="vendor/supabase-2.89.0.js"></script>
+<script type="module">
+import { sb, requerirMiembro, pintarNav, esc, fechaCorta, esEditable, editableHasta, TIPOS } from './js/sesion.js';
+
+const $ = (id) => document.getElementById(id);
+pintarNav('mis-reflexiones.html');
+await requerirMiembro();
+
+async function cargar() {
+  const [{ data: textos }, { data: ideas }] = await Promise.all([
+    sb.from('textos_brutos').select('id,texto,creado_en,fuentes(nombre,tipo,fecha)').order('creado_en', { ascending: false }),
+    sb.from('ideas').select('id,texto,texto_bruto_id,creado_en,permite_conexiones').order('creado_en'),
+  ]);
+  if (!textos?.length) {
+    $('lista').innerHTML = '<p>Todavía no escribiste ninguna reflexión. <a href="escribir.html">Empieza aquí</a>.</p>';
+    return;
+  }
+  $('lista').innerHTML = textos.map((t) => {
+    const propias = (ideas || []).filter((i) => i.texto_bruto_id === t.id);
+    const editable = esEditable(t.creado_en);
+    return `
+    <article class="tarjeta" data-texto="${t.id}">
+      <p class="tenue">${esc(t.fuentes?.nombre)} · ${TIPOS[t.fuentes?.tipo] || ''} · escrito el ${fechaCorta(t.creado_en)}
+        ${editable ? ` · editable hasta el ${fechaCorta(editableHasta(t.creado_en).toISOString())}` : ''}</p>
+      <div class="ver" style="white-space:pre-wrap">${esc(t.texto)}</div>
+      <div class="acciones">
+        ${editable ? '<button type="button" class="secundario editar-texto">Editar texto</button>' : ''}
+        <button type="button" class="enlace borrar-texto">Borrar texto</button>
+      </div>
+      ${propias.length ? `<h2>Ideas publicadas</h2>${propias.map((i) => `
+        <div class="tarjeta" data-idea="${i.id}">
+          <p class="texto-idea">${esc(i.texto)}</p>
+          <label class="check tenue"><input type="checkbox" class="conexiones" ${i.permite_conexiones ? 'checked' : ''}>
+            <span>Permitir que otras personas conecten esta idea</span></label>
+          ${esEditable(i.creado_en) ? '<button type="button" class="secundario editar-idea">Editar idea</button>' : ''}
+        </div>`).join('')}` : ''}
+    </article>`;
+  }).join('');
+
+  document.querySelectorAll('.editar-texto').forEach((b) => (b.onclick = () => editar(b.closest('[data-texto]'), 'textos_brutos', '.ver', true)));
+  document.querySelectorAll('.editar-idea').forEach((b) => (b.onclick = () => editar(b.closest('[data-idea]'), 'ideas', '.texto-idea', false)));
+  document.querySelectorAll('.conexiones').forEach((c) => (c.onchange = async () => {
+    const { error } = await sb.rpc('cambiar_permite_conexiones', { p_idea: c.closest('[data-idea]').dataset.idea, p_valor: c.checked });
+    if (error) { alert('No se pudo cambiar: ' + error.message); c.checked = !c.checked; }
+  }));
+  document.querySelectorAll('.borrar-texto').forEach((b) => (b.onclick = async () => {
+    if (!confirm('¿Borrar este texto para siempre? Las ideas que publicaste a partir de él se quedan en el mapa, sin tu nombre.')) return;
+    const { error } = await sb.from('textos_brutos').delete().eq('id', b.closest('[data-texto]').dataset.texto);
+    if (error) return alert('No se pudo borrar: ' + error.message);
+    cargar();
+  }));
+}
+
+function editar(caja, tabla, selector, largo) {
+  const vista = caja.querySelector(selector);
+  const original = vista.textContent;
+  const area = document.createElement('textarea');
+  area.value = original;
+  if (largo) area.className = 'reflexion';
+  vista.replaceWith(area);
+  caja.querySelector(tabla === 'ideas' ? '.editar-idea' : '.editar-texto').remove();
+  const guardar = document.createElement('div');
+  guardar.className = 'acciones';
+  guardar.innerHTML = '<button type="button">Guardar</button><button type="button" class="secundario">Cancelar</button>';
+  area.after(guardar);
+  const [ok, cancelar] = guardar.querySelectorAll('button');
+  cancelar.onclick = cargar;
+  ok.onclick = async () => {
+    ok.disabled = true;
+    const id = caja.dataset.texto || caja.dataset.idea;
+    const { data, error } = await sb.from(tabla).update({ texto: area.value.trim() }).eq('id', id).select('id');
+    if (error || !data?.length) {
+      ok.disabled = false;
+      return alert(error ? 'No se pudo guardar: ' + error.message : 'Ya pasaron los 7 días de edición.');
+    }
+    cargar();
+  };
+}
+
+cargar();
+</script>
+</body>
+</html>

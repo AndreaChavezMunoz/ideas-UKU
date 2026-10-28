@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ideas UKU</title>
+<link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+<main>
+  <h1>Ideas UKU</h1>
+  <p class="tenue">Un espacio para escribir lo que te dejó un evento o una lectura, y ver cómo tus ideas se conectan con las de otras personas.</p>
+
+  <section id="cargando"><p class="tenue">Cargando…</p></section>
+
+  <!-- 1. Sin sesión: pedir correo -->
+  <form id="form-correo" class="oculto">
+    <label for="correo">Tu correo</label>
+    <input id="correo" type="email" autocomplete="email" required placeholder="nombre@correo.com">
+    <div class="acciones"><button type="submit">Enviarme el enlace de acceso</button></div>
+    <p id="msg-correo" class="aviso oculto"></p>
+  </form>
+
+  <!-- 2. Con sesión pero sin perfil: primera vez -->
+  <form id="form-perfil" class="oculto">
+    <h2>Bienvenida, bienvenido</h2>
+    <p>Es tu primera vez aquí. Antes de empezar:</p>
+    <label for="nombre">Nombre <span class="tenue">(opcional)</span></label>
+    <input id="nombre" autocomplete="given-name" maxlength="80">
+    <label for="cumple">Cumpleaños <span class="tenue">(opcional)</span></label>
+    <input id="cumple" type="date">
+    <p class="tenue">Tu nombre y cumpleaños nunca se muestran junto a tus ideas ni a tus textos.</p>
+    <label class="check"><input id="acepto" type="checkbox" required>
+      <span>Leí y acepto la <a href="politica-de-datos.html" target="_blank">política de datos y privacidad</a>.</span></label>
+    <div class="acciones"><button type="submit">Entrar</button></div>
+    <p id="msg-perfil" class="error oculto"></p>
+  </form>
+</main>
+
+<script src="vendor/supabase-2.89.0.js"></script>
+<script type="module">
+import { sb } from './js/sesion.js';
+import { VERSION_POLITICA } from './js/config.js';
+
+const $ = (id) => document.getElementById(id);
+const mostrar = (id) => ['cargando', 'form-correo', 'form-perfil'].forEach((x) => $(x).classList.toggle('oculto', x !== id));
+
+async function decidir() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return mostrar('form-correo');
+  const { data: perfil } = await sb.from('perfiles').select('id').maybeSingle();
+  if (perfil) return location.replace('escribir.html');
+  mostrar('form-perfil');
+}
+
+$('form-correo').onsubmit = async (e) => {
+  e.preventDefault();
+  const boton = e.submitter; boton.disabled = true;
+  const { error } = await sb.auth.signInWithOtp({
+    email: $('correo').value.trim(),
+    options: { emailRedirectTo: location.origin + '/index.html' },
+  });
+  boton.disabled = false;
+  const msg = $('msg-correo');
+  msg.classList.remove('oculto');
+  msg.textContent = error
+    ? 'No pudimos enviar el correo: ' + error.message
+    : 'Listo. Revisa tu correo (también la carpeta de spam) y abre el enlace.';
+};
+
+$('form-perfil').onsubmit = async (e) => {
+  e.preventDefault();
+  const { data: { user } } = await sb.auth.getUser();
+  const { error } = await sb.from('perfiles').insert({
+    id: user.id,
+    correo: user.email,
+    nombre: $('nombre').value.trim() || null,
+    cumpleanos: $('cumple').value || null,
+    version_politica: VERSION_POLITICA,
+  });
+  if (error) {
+    $('msg-perfil').textContent = 'No se pudo guardar: ' + error.message;
+    return $('msg-perfil').classList.remove('oculto');
+  }
+  location.replace('escribir.html');
+};
+
+sb.auth.onAuthStateChange((evento) => { if (evento === 'SIGNED_IN') decidir(); });
+decidir();
+</script>
+</body>
+</html>
