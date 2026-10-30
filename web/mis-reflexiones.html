@@ -25,7 +25,7 @@ await requerirMiembro();
 async function cargar() {
   const [{ data: textos }, { data: ideas }] = await Promise.all([
     sb.from('textos_brutos').select('id,texto,creado_en,fuentes(nombre,tipo,fecha)').order('creado_en', { ascending: false }),
-    sb.from('ideas').select('id,texto,texto_bruto_id,creado_en,permite_conexiones').order('creado_en'),
+    sb.from('ideas').select('id,titulo,texto,texto_bruto_id,creado_en,permite_conexiones').order('creado_en'),
   ]);
   if (!textos?.length) {
     $('lista').innerHTML = '<p>Todavía no escribiste ninguna reflexión. <a href="escribir.html">Empieza aquí</a>.</p>';
@@ -45,6 +45,7 @@ async function cargar() {
       </div>
       ${propias.length ? `<h2>Ideas publicadas</h2>${propias.map((i) => `
         <div class="tarjeta" data-idea="${i.id}">
+          <p class="idea-titulo">${esc(i.titulo)}</p>
           <p class="texto-idea">${esc(i.texto)}</p>
           <label class="check tenue"><input type="checkbox" class="conexiones" ${i.permite_conexiones ? 'checked' : ''}>
             <span>Permitir que otras personas conecten esta idea</span></label>
@@ -74,6 +75,15 @@ function editar(caja, tabla, selector, largo) {
   area.value = original;
   if (largo) area.className = 'reflexion';
   vista.replaceWith(area);
+  let campoTitulo = null;
+  if (tabla === 'ideas') {
+    const vistaTitulo = caja.querySelector('.idea-titulo');
+    campoTitulo = document.createElement('input');
+    campoTitulo.className = 'titulo-idea';
+    campoTitulo.maxLength = 120;
+    campoTitulo.value = vistaTitulo.textContent;
+    vistaTitulo.replaceWith(campoTitulo);
+  }
   caja.querySelector(tabla === 'ideas' ? '.editar-idea' : '.editar-texto').remove();
   const guardar = document.createElement('div');
   guardar.className = 'acciones';
@@ -84,7 +94,10 @@ function editar(caja, tabla, selector, largo) {
   ok.onclick = async () => {
     ok.disabled = true;
     const id = caja.dataset.texto || caja.dataset.idea;
-    const { data, error } = await sb.from(tabla).update({ texto: area.value.trim() }).eq('id', id).select('id');
+    const cambios = { texto: area.value.trim() };
+    if (campoTitulo) cambios.titulo = campoTitulo.value.trim();
+    if (!cambios.texto || campoTitulo?.value.trim() === '') { ok.disabled = false; return alert('El título y el texto no pueden quedar vacíos.'); }
+    const { data, error } = await sb.from(tabla).update(cambios).eq('id', id).select('id');
     if (error || !data?.length) {
       ok.disabled = false;
       return alert(error ? 'No se pudo guardar: ' + error.message : 'Ya pasaron los 7 días de edición.');

@@ -15,6 +15,7 @@ Se ejecuta una sola vez en un proyecto nuevo. Después, en orden y una sola vez 
 1. `001_esquema.sql` — tablas, seguridad y vistas públicas
 2. `002_ideas_permanentes.sql` — las ideas públicas no se borran; si alguien borra su cuenta, quedan sin autor
 3. `003_limite_ia.sql` — límite diario de uso de la IA por persona
+4. `004_titulo_ideas.sql` — cada idea tiene un título
 
 ## Futuro: Airtable
 

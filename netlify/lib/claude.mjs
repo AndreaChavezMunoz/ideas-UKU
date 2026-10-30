@@ -4,13 +4,13 @@ const cliente = new Anthropic(); // lee ANTHROPIC_API_KEY del entorno
 
 // Pide a Claude una respuesta JSON que cumpla `schema`.
 // Si un filtro de seguridad rechaza la petición, la API la reintenta con otro modelo.
-export async function pedirJSON({ system, mensaje, schema, maxTokens = 8000 }) {
+export async function pedirJSON({ system, mensaje, schema, maxTokens = 8000, esfuerzo = 'low' }) {
   const respuesta = await cliente.beta.messages.create({
     model: 'claude-opus-5-5',
     max_tokens: maxTokens,
     betas: ['server-side-fallback-2026-07-01'],
     fallbacks: 'default',
-    output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+    output_config: { effort: esfuerzo, format: { type: 'json_schema', schema } },
     system,
     messages: [{ role: 'user', content: mensaje }],
   });

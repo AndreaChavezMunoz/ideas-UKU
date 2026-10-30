@@ -46,7 +46,7 @@ const grafo = ForceGraph()($('grafo'))
   .linkColor(() => color('--rule'))
   .linkWidth((l) => (seleccionada && (l.source.id === seleccionada || l.target.id === seleccionada) ? 2.5 : 1))
   .linkLabel((l) => esc(l.relacion))
-  .nodeLabel((n) => esc(n.texto))
+  .nodeLabel((n) => esc(n.titulo))
   .nodeCanvasObject(dibujarNodo)
   .nodePointerAreaPaint((n, c, ctx) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(n.x, n.y, 10, 0, 2 * Math.PI); ctx.fill(); })
   .onNodeClick(alTocarNodo)
@@ -64,7 +64,7 @@ function dibujarNodo(n, ctx, escala) {
   ctx.fillStyle = colorNodo(n); ctx.fill();
   if (n.es_mia) { ctx.lineWidth = 2.5; ctx.strokeStyle = color('--accent'); ctx.stroke(); }
   if (escala > 1.6 || n.id === seleccionada) {
-    const t = n.texto.length > 40 ? n.texto.slice(0, 38) + '…' : n.texto;
+    const t = n.titulo.length > 40 ? n.titulo.slice(0, 38) + '…' : n.titulo;
     ctx.font = `${11 / escala}px Georgia, serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillStyle = color('--ink');
@@ -140,14 +140,15 @@ function mostrarPanel(id) {
     .filter((c) => c.idea_a === id || c.idea_b === id)
     .map((c) => {
       const otra = datos.ideas.find((i) => i.id === (c.idea_a === id ? c.idea_b : c.idea_a));
-      return `<li><span class="etiqueta">${esc(c.relacion)}</span> ${esc(otra?.texto)}
+      return `<li><span class="etiqueta">${esc(c.relacion)}</span> ${esc(otra?.titulo)}
         ${c.es_mia ? `<button type="button" class="enlace" data-borrar="${c.id}">quitar</button>` : ''}</li>`;
     }).join('');
 
   $('panel').innerHTML = `
     <button type="button" class="enlace cerrar" id="cerrar">✕</button>
     ${idea.es_mia ? '<span class="etiqueta mia">Tu idea</span> ' : ''}${tema ? `<span class="etiqueta">${esc(tema.nombre)}</span>` : ''}
-    <h2 style="margin-top:.5rem">${esc(idea.texto)}</h2>
+    <h2 style="margin-top:.5rem">${esc(idea.titulo)}</h2>
+    <p>${esc(idea.texto)}</p>
     ${idea.frases_originales.length ? `<ul class="frases">${idea.frases_originales.map((f) => `<li>“${esc(f)}”</li>`).join('')}</ul>` : ''}
     <p class="tenue">${esc(fuente?.nombre)} · ${TIPOS[fuente?.tipo] || ''} · ${fechaCorta(idea.fecha)}</p>
     ${relaciones ? `<h3>Conexiones</h3><ul>${relaciones}</ul>` : ''}
@@ -182,7 +183,7 @@ function elegirDestino(n) {
   const a = datos.ideas.find((i) => i.id === origen);
   $('panel').innerHTML = `
     <h2>Conectar dos ideas</h2>
-    <p>«${esc(a.texto)}»</p>
+    <p><strong>${esc(a.titulo)}</strong></p>
     <form id="form-conexion">
       <label for="relacion">¿Cómo se relacionan?</label>
       <input id="relacion" list="sugerencias" maxlength="120" required placeholder="Ej.: me recordó a">
@@ -190,7 +191,7 @@ function elegirDestino(n) {
         <option value="me recordó a"><option value="contradice"><option value="complementa">
         <option value="amplía"><option value="es un ejemplo de"><option value="responde a">
       </datalist>
-      <p>«${esc(n.texto)}»</p>
+      <p><strong>${esc(n.titulo)}</strong></p>
       <div class="acciones"><button type="submit">Conectar</button>
         <button type="button" class="secundario" id="cancelar">Cancelar</button></div>
       <p id="error-conexion" class="error oculto"></p>

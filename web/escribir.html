@@ -39,13 +39,24 @@
     <p id="error1" class="error oculto"></p>
   </form>
 
+  <!-- Pantalla intermedia: preguntas para profundizar -->
+  <section id="profundizar" class="oculto">
+    <h1>Profundiza tu reflexión</h1>
+    <p class="aviso">Tu texto todavía da para pocas ideas. Estas preguntas pueden ayudarte a desarrollar lo que empezaste a pensar. Responde las que quieras: tus respuestas se agregarán a tu reflexión, que sigue siendo privada.</p>
+    <div id="preguntas"></div>
+    <div class="acciones">
+      <button type="button" id="enviar-respuestas">Continuar</button>
+      <button type="button" class="secundario" id="saltar">Saltar y ver las ideas</button>
+    </div>
+    <p id="error-prof" class="error oculto"></p>
+  </section>
+
   <!-- Pantalla 2: elegir ideas -->
   <section id="paso2" class="oculto">
     <h1>Elige tus ideas</h1>
     <p class="aviso">Recuerda que las ideas que selecciones serán públicas y otras personas podrán interactuar con ellas. Las frases de tu texto que aparecen debajo de cada idea también serán públicas.</p>
     <p class="tenue">Tu texto ya quedó guardado en privado. Marca las ideas que quieres publicar; puedes editarlas o quitar frases.</p>
 
-    <p id="cargando-ia" class="tenue">Leyendo tu texto para proponer ideas…</p>
     <p id="error-ia" class="error oculto"></p>
     <div id="ideas"></div>
 
@@ -69,6 +80,16 @@
     </div>
   </section>
 </main>
+
+<div id="espera" class="oculto" role="status" aria-live="polite">
+  <svg class="red" viewBox="0 0 144 96" aria-hidden="true">
+    <line x1="20" y1="70" x2="60" y2="24"/><line x1="60" y1="24" x2="104" y2="56"/>
+    <line x1="104" y1="56" x2="128" y2="18"/><line x1="20" y1="70" x2="104" y2="56"/>
+    <circle cx="20" cy="70" r="5"/><circle cx="60" cy="24" r="5"/><circle cx="104" cy="56" r="5"/><circle cx="128" cy="18" r="5"/>
+  </svg>
+  <p id="espera-texto">Leyendo tu reflexión…</p>
+  <p class="tenue">Esto puede tardar hasta un minuto. No cierres esta página.</p>
+</div>
 
 <script src="vendor/supabase-2.89.0.js"></script>
 <script type="module">
@@ -118,9 +139,6 @@ $('paso1').onsubmit = async (e) => {
       .insert({ fuente_id, texto: $('texto').value }).select('id,fuente_id').single();
     if (error) throw error;
     textoBruto = data;
-    $('paso1').classList.add('oculto');
-    $('paso2').classList.remove('oculto');
-    scrollTo(0, 0);
     proponer($('texto').value);
   } catch (err) {
     $('error1').textContent = 'No se pudo guardar: ' + (err.message || err);
@@ -129,14 +147,83 @@ $('paso1').onsubmit = async (e) => {
   }
 };
 
-// ---------- Pantalla 2 ----------
-function tarjeta({ idea = '', frases = [] }) {
+// ---------- Espera mientras trabaja la IA ----------
+const MENSAJES = ['Leyendo tu reflexión…', 'Buscando las ideas que hay en tu texto…', 'Ordenando cada idea…', 'Eligiendo tus frases originales…', 'Ya casi…'];
+async function conEspera(promesa) {
+  let i = 0;
+  $('espera-texto').textContent = MENSAJES[0];
+  $('espera').classList.remove('oculto');
+  const reloj = setInterval(() => { i = Math.min(i + 1, MENSAJES.length - 1); $('espera-texto').textContent = MENSAJES[i]; }, 6000);
+  try { return await promesa; } finally { clearInterval(reloj); $('espera').classList.add('oculto'); }
+}
+
+const MIN_IDEAS = 3;
+let yaProfundizo = false;
+let propuesta = { ideas: [], preguntas: [] };
+
+async function proponer(texto) {
+  $('paso1').classList.add('oculto');
+  try {
+    propuesta = await conEspera(llamarFuncion('proponer-ideas', { texto }));
+  } catch (err) {
+    propuesta = { ideas: [], preguntas: [] };
+    return mostrarIdeas(err.message);
+  }
+  if (propuesta.ideas.length < MIN_IDEAS && !yaProfundizo && propuesta.preguntas.length) return mostrarPreguntas();
+  mostrarIdeas();
+}
+
+// ---------- Pantalla intermedia: preguntas ----------
+function mostrarPreguntas() {
+  $('preguntas').innerHTML = propuesta.preguntas.map((p, i) => `
+    <div class="pregunta">
+      <label for="r${i}">${esc(p)}</label>
+      <textarea id="r${i}" rows="4" data-pregunta="${esc(p)}"></textarea>
+    </div>`).join('');
+  $('profundizar').classList.remove('oculto');
+  scrollTo(0, 0);
+}
+
+$('enviar-respuestas').onclick = async (e) => {
+  const respuestas = [...document.querySelectorAll('#preguntas textarea')]
+    .filter((t) => t.value.trim())
+    .map((t) => `${t.dataset.pregunta}\n${t.value.trim()}`);
+  if (!respuestas.length) return $('saltar').click();
+  e.target.disabled = true;
+  const textoNuevo = `${$('texto').value.trimEnd()}\n\n— Profundizando —\n\n${respuestas.join('\n\n')}`;
+  const { error } = await sb.from('textos_brutos').update({ texto: textoNuevo }).eq('id', textoBruto.id);
+  e.target.disabled = false;
+  if (error) {
+    $('error-prof').textContent = 'No se pudieron guardar tus respuestas: ' + error.message;
+    return $('error-prof').classList.remove('oculto');
+  }
+  $('texto').value = textoNuevo;
+  yaProfundizo = true;
+  $('profundizar').classList.add('oculto');
+  proponer(textoNuevo);
+};
+
+$('saltar').onclick = () => { $('profundizar').classList.add('oculto'); mostrarIdeas(); };
+
+// ---------- Pantalla 2: elegir ideas ----------
+function mostrarIdeas(error) {
+  $('ideas').innerHTML = '';
+  propuesta.ideas.forEach(tarjeta);
+  const aviso = error || (!propuesta.ideas.length ? 'No encontramos ideas completas en tu texto. Puedes escribir las tuyas a mano.' : '');
+  $('error-ia').textContent = aviso;
+  $('error-ia').classList.toggle('oculto', !aviso);
+  $('paso2').classList.remove('oculto');
+  scrollTo(0, 0);
+}
+
+function tarjeta({ titulo = '', idea = '', frases = [] }) {
   const el = document.createElement('div');
   el.className = 'tarjeta';
   el.innerHTML = `
     <label class="check"><input type="checkbox" class="elegir"> <span>Publicar esta idea</span></label>
-    <textarea class="texto-idea" rows="3" maxlength="1000" placeholder="Escribe tu idea…">${esc(idea)}</textarea>
-    <ul class="frases">${frases.map((f) => `<li><span>“${esc(f)}”</span><button type="button" class="enlace quitar" aria-label="Quitar frase">✕</button></li>`).join('')}</ul>
+    <input class="titulo-idea" maxlength="120" placeholder="Título: resume tu idea en pocas palabras" value="${esc(titulo)}">
+    <textarea class="texto-idea" rows="5" maxlength="2000" placeholder="Tu idea: de dónde partes, por qué te importa, cómo lo piensas y a dónde llegas…">${esc(idea)}</textarea>
+    <ul class="frases">${frases.map((f) => `<li><span>${esc(f)}</span><button type="button" class="enlace quitar" aria-label="Quitar frase">✕</button></li>`).join('')}</ul>
     <label class="check tenue"><input type="checkbox" class="conexiones" checked> <span>Permitir que otras personas conecten esta idea</span></label>`;
   el.querySelector('.elegir').onchange = (e) => el.classList.toggle('elegida', e.target.checked);
   el.querySelectorAll('.quitar').forEach((b) => (b.onclick = () => b.closest('li').remove()));
@@ -144,38 +231,27 @@ function tarjeta({ idea = '', frases = [] }) {
   return el;
 }
 
-async function proponer(texto) {
-  try {
-    const { ideas } = await llamarFuncion('proponer-ideas', { texto });
-    ideas.forEach(tarjeta);
-    if (!ideas.length) throw new Error('No encontramos ideas claras. Puedes escribirlas a mano.');
-  } catch (err) {
-    $('error-ia').textContent = err.message;
-    $('error-ia').classList.remove('oculto');
-  } finally {
-    $('cargando-ia').classList.add('oculto');
-  }
-}
-
 $('idea-propia').onclick = () => {
   const el = tarjeta({});
   el.querySelector('.elegir').click();
-  el.querySelector('textarea').focus();
+  el.querySelector('.titulo-idea').focus();
 };
 
 $('publicar').onclick = async (e) => {
-  const filas = [...document.querySelectorAll('#ideas .tarjeta')]
-    .filter((el) => el.querySelector('.elegir').checked)
-    .map((el) => ({
-      texto_bruto_id: textoBruto.id,
-      fuente_id: textoBruto.fuente_id,
-      texto: el.querySelector('.texto-idea').value.trim(),
-      frases_originales: [...el.querySelectorAll('.frases li span')].map((s) => s.textContent.slice(1, -1)),
-      permite_conexiones: el.querySelector('.conexiones').checked,
-    }))
-    .filter((f) => f.texto);
-  if (!filas.length) {
-    $('error2').textContent = 'No marcaste ninguna idea. Si no quieres publicar, toca «Terminar sin publicar».';
+  const elegidas = [...document.querySelectorAll('#ideas .tarjeta')].filter((el) => el.querySelector('.elegir').checked);
+  const filas = elegidas.map((el) => ({
+    texto_bruto_id: textoBruto.id,
+    fuente_id: textoBruto.fuente_id,
+    titulo: el.querySelector('.titulo-idea').value.trim(),
+    texto: el.querySelector('.texto-idea').value.trim(),
+    frases_originales: [...el.querySelectorAll('.frases li span')].map((s) => s.textContent),
+    permite_conexiones: el.querySelector('.conexiones').checked,
+  }));
+  const fallo = !filas.length
+    ? 'No marcaste ninguna idea. Si no quieres publicar, toca «Terminar sin publicar».'
+    : filas.some((f) => !f.titulo || !f.texto) ? 'Cada idea marcada necesita un título y un texto.' : '';
+  if (fallo) {
+    $('error2').textContent = fallo;
     return $('error2').classList.remove('oculto');
   }
   e.target.disabled = true;
