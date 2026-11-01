@@ -60,6 +60,12 @@
     <p id="error-ia" class="error oculto"></p>
     <div id="ideas"></div>
 
+    <section id="sugeridas" class="oculto">
+      <h2>Conexiones entre tus ideas</h2>
+      <p class="tenue">Como salen del mismo texto, la IA ve estas relaciones entre las ideas que marcaste. Se crearán en el mapa al publicar. Puedes cambiar la frase o desmarcarlas.</p>
+      <div id="lista-conexiones"></div>
+    </section>
+
     <div class="acciones">
       <button type="button" class="secundario" id="idea-propia">+ Escribir una idea propia</button>
     </div>
@@ -159,14 +165,14 @@ async function conEspera(promesa) {
 
 const MIN_IDEAS = 3;
 let yaProfundizo = false;
-let propuesta = { ideas: [], preguntas: [] };
+let propuesta = { ideas: [], conexiones: [], preguntas: [] };
 
 async function proponer(texto) {
   $('paso1').classList.add('oculto');
   try {
     propuesta = await conEspera(llamarFuncion('proponer-ideas', { texto }));
   } catch (err) {
-    propuesta = { ideas: [], preguntas: [] };
+    propuesta = { ideas: [], conexiones: [], preguntas: [] };
     return mostrarIdeas(err.message);
   }
   if (propuesta.ideas.length < MIN_IDEAS && !yaProfundizo && propuesta.preguntas.length) return mostrarPreguntas();
@@ -209,11 +215,35 @@ $('saltar').onclick = () => { $('profundizar').classList.add('oculto'); mostrarI
 function mostrarIdeas(error) {
   $('ideas').innerHTML = '';
   propuesta.ideas.forEach(tarjeta);
+  $('lista-conexiones').innerHTML = (propuesta.conexiones || []).map((c, i) => `
+    <div class="tarjeta conexion" data-a="${c.a}" data-b="${c.b}">
+      <label class="check"><input type="checkbox" class="usar" checked> <span>Crear esta conexión</span></label>
+      <p class="idea-titulo titulo-a"></p>
+      <input class="relacion" maxlength="120" value="${esc(c.relacion)}" aria-label="Frase de relación">
+      <p class="idea-titulo titulo-b" style="margin-top:.5rem"></p>
+    </div>`).join('');
+  actualizarConexiones();
   const aviso = error || (!propuesta.ideas.length ? 'No encontramos ideas completas en tu texto. Puedes escribir las tuyas a mano.' : '');
   $('error-ia').textContent = aviso;
   $('error-ia').classList.toggle('oculto', !aviso);
   $('paso2').classList.remove('oculto');
   scrollTo(0, 0);
+}
+
+// Muestra solo las conexiones cuyas dos ideas están marcadas, con sus títulos actuales
+function actualizarConexiones() {
+  const tarjetas = [...document.querySelectorAll('#ideas .tarjeta')];
+  let visibles = 0;
+  document.querySelectorAll('#lista-conexiones .conexion').forEach((c) => {
+    const a = tarjetas[c.dataset.a], b = tarjetas[c.dataset.b];
+    const ok = a?.querySelector('.elegir').checked && b?.querySelector('.elegir').checked
+      && a.querySelector('.conexiones').checked && b.querySelector('.conexiones').checked;
+    c.classList.toggle('oculto', !ok);
+    if (ok) visibles++;
+    c.querySelector('.titulo-a').textContent = a?.querySelector('.titulo-idea').value || '';
+    c.querySelector('.titulo-b').textContent = b?.querySelector('.titulo-idea').value || '';
+  });
+  $('sugeridas').classList.toggle('oculto', !visibles);
 }
 
 function tarjeta({ titulo = '', idea = '', frases = [] }) {
@@ -225,7 +255,9 @@ function tarjeta({ titulo = '', idea = '', frases = [] }) {
     <textarea class="texto-idea" rows="5" maxlength="2000" placeholder="Tu idea: de dónde partes, por qué te importa, cómo lo piensas y a dónde llegas…">${esc(idea)}</textarea>
     <ul class="frases">${frases.map((f) => `<li><span>${esc(f)}</span><button type="button" class="enlace quitar" aria-label="Quitar frase">✕</button></li>`).join('')}</ul>
     <label class="check tenue"><input type="checkbox" class="conexiones" checked> <span>Permitir que otras personas conecten esta idea</span></label>`;
-  el.querySelector('.elegir').onchange = (e) => el.classList.toggle('elegida', e.target.checked);
+  el.querySelector('.elegir').onchange = (e) => { el.classList.toggle('elegida', e.target.checked); actualizarConexiones(); };
+  el.querySelector('.conexiones').onchange = actualizarConexiones;
+  el.querySelector('.titulo-idea').oninput = actualizarConexiones;
   el.querySelectorAll('.quitar').forEach((b) => (b.onclick = () => b.closest('li').remove()));
   $('ideas').append(el);
   return el;
@@ -238,7 +270,8 @@ $('idea-propia').onclick = () => {
 };
 
 $('publicar').onclick = async (e) => {
-  const elegidas = [...document.querySelectorAll('#ideas .tarjeta')].filter((el) => el.querySelector('.elegir').checked);
+  const tarjetas = [...document.querySelectorAll('#ideas .tarjeta')];
+  const elegidas = tarjetas.filter((el) => el.querySelector('.elegir').checked);
   const filas = elegidas.map((el) => ({
     texto_bruto_id: textoBruto.id,
     fuente_id: textoBruto.fuente_id,
@@ -255,13 +288,31 @@ $('publicar').onclick = async (e) => {
     return $('error2').classList.remove('oculto');
   }
   e.target.disabled = true;
-  const { error } = await sb.from('ideas').insert(filas);
-  if (error) {
-    e.target.disabled = false;
-    $('error2').textContent = 'No se pudo publicar: ' + error.message;
-    return $('error2').classList.remove('oculto');
+  // Una por una, para saber qué id recibió cada tarjeta
+  const idDe = new Map();
+  for (const [k, fila] of filas.entries()) {
+    const { data, error } = await sb.from('ideas').insert(fila).select('id').single();
+    if (error) {
+      $('error2').textContent = `No se pudo publicar «${fila.titulo}»: ${error.message}` + (k ? ` (las ${k} anteriores sí se publicaron)` : '');
+      return $('error2').classList.remove('oculto');
+    }
+    idDe.set(elegidas[k], data.id);
   }
-  terminar(`Publicaste ${filas.length} ${filas.length === 1 ? 'idea' : 'ideas'}. Puedes editarlas durante 7 días desde «Mis reflexiones».`);
+  const conexiones = [...document.querySelectorAll('#lista-conexiones .conexion:not(.oculto)')]
+    .filter((c) => c.querySelector('.usar').checked && c.querySelector('.relacion').value.trim())
+    .map((c) => ({
+      idea_a: idDe.get(tarjetas[c.dataset.a]),
+      idea_b: idDe.get(tarjetas[c.dataset.b]),
+      relacion: c.querySelector('.relacion').value.trim(),
+    }));
+  let aviso = '';
+  if (conexiones.length) {
+    const { error } = await sb.from('conexiones').insert(conexiones);
+    aviso = error ? ' No se pudieron crear las conexiones sugeridas; puedes crearlas desde el mapa.'
+      : conexiones.length === 1 ? ' También se creó 1 conexión.' : ` También se crearon ${conexiones.length} conexiones.`;
+    if (!error) llamarFuncion('sugerir-tema').catch(() => {});
+  }
+  terminar(`Publicaste ${filas.length} ${filas.length === 1 ? 'idea' : 'ideas'}.${aviso} Puedes editarlas durante 7 días desde «Mis reflexiones».`);
 };
 
 $('sin-publicar').onclick = () => terminar('Tu reflexión quedó guardada en privado, en «Mis reflexiones».');

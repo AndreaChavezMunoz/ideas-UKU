@@ -1,4 +1,5 @@
-// POST { texto } → { ideas: [{ titulo, idea, frases: [...] }], preguntas: [...] }
+// POST { texto } → { ideas: [{ titulo, idea, frases }], conexiones: [{ a, b, relacion }], preguntas: [...] }
+// `a` y `b` son posiciones (desde 0) en la lista `ideas`.
 // Construye ideas coherentes a partir de frases ORIGINALES del texto.
 // Si el texto da para pocas ideas, la app usa `preguntas` para que la persona profundice.
 
@@ -26,6 +27,9 @@ Para cada idea, copia las frases del texto que la sustentan, aunque estén repar
 ## Cuántas ideas
 Propón todas las ideas coherentes y distintas que el texto sostenga, hasta un máximo de 5. Si el texto tiene contenido, propón al menos una, aunque sea la más sencilla. Devuelve cero ideas solo si el texto está vacío o no dice nada.
 
+## Conexiones entre las ideas
+Como todas las ideas salen del mismo texto, señala las conexiones claras entre ellas: cuando una es causa, consecuencia, ejemplo, matiz o contradicción de otra. Para cada conexión indica los números de las dos ideas (empezando en 1, en el orden en que las propones) y una frase corta de relación, de 1 a 4 palabras, que se lea de la primera idea hacia la segunda (por ejemplo: «lleva a», «es un ejemplo de», «contradice», «complementa», «me recordó a»). Propón solo conexiones que el texto justifique; si no hay ninguna, deja la lista vacía.
+
 ## Preguntas para profundizar
 Escribe además de 3 a 5 preguntas abiertas que ayuden a la persona a desarrollar lo que empezó a pensar: qué le hizo notar eso, por qué le importa, a qué la lleva, qué duda le queda. Deben partir de lo que escribió y nombrar sus temas concretos. No sugieras respuestas ni opiniones dentro de la pregunta. Escríbelas en tú.`;
 
@@ -45,9 +49,22 @@ const SCHEMA = {
         additionalProperties: false,
       },
     },
+    conexiones: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          idea_a: { type: 'integer' },
+          idea_b: { type: 'integer' },
+          relacion: { type: 'string' },
+        },
+        required: ['idea_a', 'idea_b', 'relacion'],
+        additionalProperties: false,
+      },
+    },
     preguntas: { type: 'array', items: { type: 'string' } },
   },
-  required: ['ideas', 'preguntas'],
+  required: ['ideas', 'conexiones', 'preguntas'],
   additionalProperties: false,
 };
 
@@ -68,18 +85,33 @@ export default async (req) => {
   }
 
   try {
-    const { ideas, preguntas } = await pedirJSON({ system: SYSTEM, mensaje: texto, schema: SCHEMA, esfuerzo: 'medium' });
+    const { ideas, conexiones, preguntas } = await pedirJSON({ system: SYSTEM, mensaje: texto, schema: SCHEMA, esfuerzo: 'medium' });
     const original = normalizar(texto);
     // Solo se aceptan frases que de verdad están en el texto
     const limpias = ideas
-      .map(({ titulo, idea, frases }) => ({
+      .map(({ titulo, idea, frases }, i) => ({
+        numero: i + 1,
         titulo: titulo.trim().slice(0, 120),
         idea: idea.trim(),
         frases: [...new Set(frases.map(normalizar))].filter((f) => f && original.includes(f)),
       }))
       .filter((i) => i.titulo && i.idea && i.frases.length)
       .slice(0, 5);
-    return json({ ideas: limpias, preguntas: preguntas.map((q) => q.trim()).filter(Boolean).slice(0, 5) });
+    // Las conexiones usan la numeración de la IA; se pasan a posiciones en `limpias`
+    const posicion = new Map(limpias.map((i, k) => [i.numero, k]));
+    const vistas = new Set();
+    const pares = conexiones
+      .map(({ idea_a, idea_b, relacion }) => ({ a: posicion.get(idea_a), b: posicion.get(idea_b), relacion: relacion.trim().slice(0, 120) }))
+      .filter(({ a, b, relacion }) => {
+        const clave = [a, b].sort().join('-');
+        if (a === undefined || b === undefined || a === b || !relacion || vistas.has(clave)) return false;
+        return vistas.add(clave);
+      });
+    return json({
+      ideas: limpias.map(({ numero, ...resto }) => resto),
+      conexiones: pares,
+      preguntas: preguntas.map((q) => q.trim()).filter(Boolean).slice(0, 5),
+    });
   } catch (e) {
     console.error(e);
     return json({ error: 'La IA no está disponible ahora. Puedes escribir tus ideas a mano.' }, 502);
