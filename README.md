@@ -4,7 +4,8 @@ Zettelkasten colectivo: reflexiones privadas → ideas públicas y anónimas →
 
 - **Frontend:** HTML + JS sin compilación, en `web/`, publicado por Netlify.
 - **Base de datos y login:** Supabase (región São Paulo), enlace mágico y Row Level Security.
-- **IA:** Netlify Functions que llaman a la API de Claude; la clave nunca llega al navegador.
+- **IA:** Supabase Edge Functions que llaman a la API de Claude; la clave nunca llega al navegador.
+  (Antes eran Netlify Functions, pero Netlify corta las llamadas a los 10 segundos.)
 
 ## Base de datos
 
@@ -32,15 +33,12 @@ web/                      páginas (HTML + JS sin compilación)
   mis-reflexiones.html    textos completos propios e ideas publicadas
   js/config.js            URL y clave pública de Supabase
   vendor/                 supabase-js y force-graph (copias locales)
-netlify/functions/        proponer-ideas, sugerir-tema (llaman a Claude)
-netlify/lib/              utilidades compartidas de las funciones
-supabase/                 archivos SQL
+supabase/functions/       proponer-ideas, sugerir-tema (Edge Functions que llaman a Claude)
+supabase/*.sql            archivos SQL
 ```
 
-## Variables de entorno en Netlify
+## Secretos
 
-| Variable | Valor |
-|---|---|
-| `ANTHROPIC_API_KEY` | clave de console.anthropic.com |
-| `SUPABASE_URL` | `https://cikzmmsegzyezkqeuchi.supabase.co` |
-| `SUPABASE_SECRET_KEY` | clave secreta de Supabase (Project Settings → API Keys) |
+La única clave que hay que guardar a mano es `ANTHROPIC_API_KEY`, en Supabase →
+Edge Functions → Secrets. `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` las pone Supabase solo.
+Netlify ya no necesita variables de entorno.

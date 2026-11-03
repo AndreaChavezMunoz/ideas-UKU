@@ -16,16 +16,14 @@ export async function requerirMiembro() {
   return session.user;
 }
 
+// Llama a una Edge Function de Supabase (la IA vive ahí: permite hasta 150 s por llamada)
 export async function llamarFuncion(nombre, cuerpo = {}) {
-  const { data: { session } } = await sb.auth.getSession();
-  const res = await fetch(`/.netlify/functions/${nombre}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-    body: JSON.stringify(cuerpo),
-  });
-  const datos = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(datos.error || 'Algo salió mal');
-  return datos;
+  const { data, error } = await sb.functions.invoke(nombre, { body: cuerpo });
+  if (!error) return data;
+  let mensaje = '';
+  try { mensaje = (await error.context.json()).error; } catch { /* respuesta sin JSON */ }
+  const estado = error.context?.status;
+  throw new Error(mensaje || `Algo salió mal${estado ? ` (código ${estado})` : ''}. Intenta de nuevo en un momento.`);
 }
 
 export function editableHasta(creadoEn) {

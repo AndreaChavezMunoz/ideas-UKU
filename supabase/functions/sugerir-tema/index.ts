@@ -1,8 +1,8 @@
 // POST → busca grupos de 5 o más ideas conectadas y les sugiere un nombre de tema.
 // Solo lee ideas públicas (nunca textos brutos).
 
-import { pedirJSON } from '../lib/claude.mjs';
-import { usuarioDeLaPeticion, superaLimite, rest, json } from '../lib/supabase.mjs';
+import { pedirJSON } from '../_shared/claude.ts';
+import { usuarioDeLaPeticion, superaLimite, rest, json } from '../_shared/supabase.ts';
 
 const MINIMO = 5;
 const MAX_USOS_DIA = 30;
@@ -34,13 +34,14 @@ function grupos(ideas, conexiones) {
   return [...porRaiz.values()];
 }
 
-export default async (req) => {
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return json('ok');
   if (req.method !== 'POST') return json({ error: 'Método no permitido' }, 405);
   const usuario = await usuarioDeLaPeticion(req);
   if (!usuario) return json({ error: 'Necesitas iniciar sesión' }, 401);
 
   const [ideas, conexiones, temasIdeas] = await Promise.all([
-    rest('ideas?select=id,texto'),
+    rest('ideas?select=id,titulo,texto'),
     rest('conexiones?select=idea_a,idea_b'),
     rest('temas_ideas?select=tema_id,idea_id'),
   ]);
@@ -65,7 +66,7 @@ export default async (req) => {
     if (await superaLimite(usuario, 'sugerir-tema', MAX_USOS_DIA)) break;
 
     try {
-      const lista = grupo.map((i) => `- ${i.texto}`).join('\n');
+      const lista = grupo.map((i) => `- ${i.titulo}: ${i.texto}`).join('\n');
       const { nombre } = await pedirJSON({ system: SYSTEM, mensaje: lista, schema: SCHEMA, maxTokens: 2000 });
       for (const [temaId] of solapados) {
         await rest(`temas?id=eq.${temaId}`, { method: 'DELETE' });
@@ -85,4 +86,4 @@ export default async (req) => {
     }
   }
   return json({ temas: creados });
-};
+});

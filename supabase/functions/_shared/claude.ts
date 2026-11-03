@@ -1,10 +1,16 @@
-import Anthropic from '@anthropic-ai/sdk';
+import Anthropic from 'npm:@anthropic-ai/sdk@1.3.0';
 
-const cliente = new Anthropic(); // lee ANTHROPIC_API_KEY del entorno
+const cliente = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
 
 // Pide a Claude una respuesta JSON que cumpla `schema`.
 // Si un filtro de seguridad rechaza la petición, la API la reintenta con otro modelo.
-export async function pedirJSON({ system, mensaje, schema, maxTokens = 8000, esfuerzo = 'low' }) {
+export async function pedirJSON({ system, mensaje, schema, maxTokens = 8000, esfuerzo = 'low' }: {
+  system: string;
+  mensaje: string;
+  schema: Record<string, unknown>;
+  maxTokens?: number;
+  esfuerzo?: 'low' | 'medium' | 'high';
+}) {
   const respuesta = await cliente.beta.messages.create({
     model: 'claude-opus-5-5',
     max_tokens: maxTokens,
@@ -16,7 +22,7 @@ export async function pedirJSON({ system, mensaje, schema, maxTokens = 8000, esf
   });
   if (respuesta.stop_reason === 'refusal') throw new Error('La IA no pudo procesar este texto');
   if (respuesta.stop_reason === 'max_tokens') throw new Error('La respuesta de la IA quedó incompleta');
-  const texto = respuesta.content.find((b) => b.type === 'text')?.text;
-  if (!texto) throw new Error('La IA no devolvió texto');
-  return JSON.parse(texto);
+  const bloque = respuesta.content.find((b) => b.type === 'text');
+  if (!bloque || bloque.type !== 'text') throw new Error('La IA no devolvió texto');
+  return JSON.parse(bloque.text);
 }

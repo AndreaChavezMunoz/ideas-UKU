@@ -3,8 +3,8 @@
 // Construye ideas coherentes a partir de frases ORIGINALES del texto.
 // Si el texto da para pocas ideas, la app usa `preguntas` para que la persona profundice.
 
-import { pedirJSON } from '../lib/claude.mjs';
-import { usuarioDeLaPeticion, superaLimite, json } from '../lib/supabase.mjs';
+import { pedirJSON } from '../_shared/claude.ts';
+import { usuarioDeLaPeticion, superaLimite, json } from '../_shared/supabase.ts';
 
 const MAX_USOS_DIA = 20;
 
@@ -70,7 +70,8 @@ const SCHEMA = {
 
 const normalizar = (s) => s.replace(/\s+/g, ' ').trim();
 
-export default async (req) => {
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return json('ok');
   if (req.method !== 'POST') return json({ error: 'Método no permitido' }, 405);
 
   const usuario = await usuarioDeLaPeticion(req);
@@ -116,4 +117,4 @@ export default async (req) => {
     console.error(e);
     return json({ error: 'La IA no está disponible ahora. Puedes escribir tus ideas a mano.' }, 502);
   }
-};
+});

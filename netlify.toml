@@ -1,6 +1,3 @@
+# Netlify solo publica la web. La IA vive en Supabase Edge Functions (supabase/functions/).
 [build]
   publish = "web"
-  functions = "netlify/functions"
-
-[functions]
-  node_bundler = "esbuild"
