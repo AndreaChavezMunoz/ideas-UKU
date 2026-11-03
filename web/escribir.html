@@ -53,7 +53,8 @@
 
   <!-- Pantalla 2: elegir ideas -->
   <section id="paso2" class="oculto">
-    <h1>Elige tus ideas</h1>
+    <h1 id="titulo-ideas">Elige tus ideas</h1>
+    <p id="ya-publicadas" class="tenue oculto"></p>
     <p class="aviso">Recuerda que las ideas que selecciones serán públicas y otras personas podrán interactuar con ellas. Las frases de tu texto que aparecen debajo de cada idea también serán públicas.</p>
     <p class="tenue">Tu texto ya quedó guardado en privado. Marca las ideas que quieres publicar; puedes editarlas o quitar frases.</p>
 
@@ -99,7 +100,7 @@
 
 <script src="vendor/supabase-2.89.0.js"></script>
 <script type="module">
-import { sb, requerirMiembro, llamarFuncion, pintarNav, esc, fechaCorta, TIPOS } from './js/sesion.js';
+import { sb, requerirMiembro, llamarFuncion, pintarNav, esc, fechaCorta, esEditable, TIPOS } from './js/sesion.js';
 
 const $ = (id) => document.getElementById(id);
 pintarNav('escribir.html');
@@ -164,12 +165,13 @@ async function conEspera(promesa) {
 }
 
 let yaProfundizo = false;
+let evitar = []; // ideas ya publicadas desde esta reflexión (modo «Generar más ideas»)
 let propuesta = { ideas: [], conexiones: [], profundizar: false, preguntas: [] };
 
 async function proponer(texto) {
   $('paso1').classList.add('oculto');
   try {
-    propuesta = await conEspera(llamarFuncion('proponer-ideas', { texto }));
+    propuesta = await conEspera(llamarFuncion('proponer-ideas', { texto, evitar }));
   } catch (err) {
     propuesta = { ideas: [], conexiones: [], preguntas: [] };
     return mostrarIdeas(err.message);
@@ -322,6 +324,31 @@ function terminar(mensaje) {
   $('listo').classList.remove('oculto');
   $('listo-texto').textContent = mensaje;
   scrollTo(0, 0);
+}
+
+// ---------- Modo «Generar más ideas» desde Mis reflexiones ----------
+const idTexto = new URLSearchParams(location.search).get('texto');
+if (idTexto) {
+  $('paso1').classList.add('oculto');
+  const [{ data: tb }, { data: previas }] = await Promise.all([
+    sb.from('textos_brutos').select('id,texto,fuente_id,creado_en').eq('id', idTexto).maybeSingle(),
+    sb.from('ideas').select('titulo,texto').eq('texto_bruto_id', idTexto),
+  ]);
+  if (!tb) {
+    location.replace('mis-reflexiones.html');
+  } else {
+    textoBruto = { id: tb.id, fuente_id: tb.fuente_id };
+    $('texto').value = tb.texto;
+    evitar = previas || [];
+    // Pasados los 7 días el texto ya no se puede ampliar, así que no se ofrecen preguntas
+    yaProfundizo = !esEditable(tb.creado_en);
+    if (evitar.length) {
+      $('titulo-ideas').textContent = 'Más ideas de tu reflexión';
+      $('ya-publicadas').innerHTML = `Ya publicaste desde este texto: ${evitar.map((i) => `«${esc(i.titulo)}»`).join(', ')}. Las nuevas ideas buscan otros temas.`;
+      $('ya-publicadas').classList.remove('oculto');
+    }
+    proponer(tb.texto);
+  }
 }
 </script>
 </body>

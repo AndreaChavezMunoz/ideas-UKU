@@ -41,6 +41,7 @@ async function cargar() {
       <div class="ver" style="white-space:pre-wrap">${esc(t.texto)}</div>
       <div class="acciones">
         ${editable ? '<button type="button" class="secundario editar-texto">Editar texto</button>' : ''}
+        <a class="boton secundario" href="escribir.html?texto=${t.id}">${propias.length ? 'Generar más ideas' : 'Generar ideas'}</a>
         <button type="button" class="enlace borrar-texto">Borrar texto</button>
       </div>
       ${propias.length ? `<h2>Ideas publicadas</h2>${propias.map((i) => `

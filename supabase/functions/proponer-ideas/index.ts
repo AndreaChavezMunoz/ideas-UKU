@@ -1,7 +1,8 @@
-// POST { texto } → { ideas: [{ titulo, idea, frases }], conexiones: [{ a, b, relacion }], profundizar, preguntas }
+// POST { texto, evitar?: [{ titulo, texto }] } → { ideas: [{ titulo, idea, frases }], conexiones: [{ a, b, relacion }], profundizar, preguntas }
 // `a` y `b` son posiciones (desde 0) en la lista `ideas`.
 // Destila la reflexión en tres pasos (reconocimiento, matriz de destilación, tesis central)
 // y devuelve pocas ideas, cada una con un solo tema mayor, desarrolladas a partir de frases ORIGINALES.
+// `evitar` son las ideas ya publicadas desde esta reflexión: las nuevas deben tratar otros temas.
 
 import { pedirJSON } from '../_shared/claude.ts';
 import { usuarioDeLaPeticion, superaLimite, json } from '../_shared/supabase.ts';
@@ -37,11 +38,14 @@ Para cada idea:
 - titulo: de 3 a 8 palabras que digan de qué trata la idea, no solo el tema general (mejor «Recordar en grupo cambia lo que recordamos» que «La memoria»);
 - frases: las frases de la matriz de ese tema que sustentan la idea, copiadas igual.
 
+## Ideas ya publicadas
+Si el mensaje incluye una sección «Ideas ya publicadas de esta reflexión», la persona vuelve a su texto para sacar ideas nuevas. Esos temas ya están cubiertos: no los repitas ni propongas variantes de ellos. Busca en la matriz los otros temas mayores del texto. Si no queda ningún tema distinto que el texto desarrolle lo suficiente, devuelve cero ideas y marca profundizar = true, con preguntas sobre aspectos del texto que esas ideas no cubren.
+
 ## Conexiones entre las ideas (campo "conexiones")
 Si propones más de una idea, señala las relaciones claras entre ellas (causa, consecuencia, ejemplo, matiz, contradicción). Indica los números de las dos ideas (empezando en 1, en el orden en que las propones) y una frase de relación de 1 a 4 palabras que se lea de la primera hacia la segunda («lleva a», «es un ejemplo de», «contradice», «complementa»). Si no hay ninguna clara, deja la lista vacía.
 
 ## ¿Hace falta profundizar? (campos "profundizar" y "preguntas")
-Marca profundizar = true si el texto no alcanza para desarrollar bien al menos una idea con sus cuatro partes, o si a las ideas les falta claramente el propósito o la conclusión. Si el texto tiene algún contenido, propón igual la idea que mejor se sostenga.
+Marca profundizar = true si el texto no alcanza para desarrollar bien al menos una idea con sus cuatro partes, o si a las ideas les falta claramente el propósito o la conclusión. Si el texto tiene algún contenido, propón igual la idea que mejor se sostenga (salvo que todos sus temas ya estén publicados).
 Escribe siempre de 3 a 5 preguntas abiertas, en tú, que ayuden a la persona a desarrollar justo lo que falta en sus temas mayores: por qué le importa, a qué la lleva, qué haría, qué duda le queda. Nombra sus temas concretos y no sugieras respuestas ni opiniones dentro de la pregunta.`;
 
 const cadena = { type: 'string' };
@@ -112,6 +116,15 @@ const SCHEMA = {
 
 const normalizar = (s) => s.replace(/\s+/g, ' ').trim();
 
+function armarMensaje(texto: string, evitar: { titulo?: string; texto?: string }[]) {
+  const previas = (Array.isArray(evitar) ? evitar : [])
+    .filter((i) => typeof i?.titulo === 'string')
+    .slice(0, 30)
+    .map((i) => `- ${i.titulo}: ${String(i.texto ?? '').slice(0, 600)}`);
+  if (!previas.length) return texto;
+  return `${texto}\n\n---\nIdeas ya publicadas de esta reflexión (no repetir estos temas):\n${previas.join('\n')}`;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return json('ok');
   if (req.method !== 'POST') return json({ error: 'Método no permitido' }, 405);
@@ -119,7 +132,7 @@ Deno.serve(async (req: Request) => {
   const usuario = await usuarioDeLaPeticion(req);
   if (!usuario) return json({ error: 'Necesitas iniciar sesión' }, 401);
 
-  const { texto } = await req.json().catch(() => ({}));
+  const { texto, evitar = [] } = await req.json().catch(() => ({}));
   if (typeof texto !== 'string' || !texto.trim()) return json({ error: 'Falta el texto' }, 400);
   if (texto.length > 50000) return json({ error: 'El texto es demasiado largo' }, 400);
 
@@ -129,7 +142,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const { ideas, conexiones, profundizar, preguntas } = await pedirJSON({
-      system: SYSTEM, mensaje: texto, schema: SCHEMA, esfuerzo: 'medium', maxTokens: 16000,
+      system: SYSTEM, mensaje: armarMensaje(texto, evitar), schema: SCHEMA, esfuerzo: 'medium', maxTokens: 16000,
     });
     const original = normalizar(texto);
     // Solo se aceptan frases que de verdad están en el texto
