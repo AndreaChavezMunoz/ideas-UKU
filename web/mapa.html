@@ -80,8 +80,9 @@ addEventListener('resize', ajustarTamano);
 
 async function cargar() {
   const [ideas, conexiones, fuentes, temas, temasIdeas] = await Promise.all([
-    sb.from('ideas_publicas').select('*'),
-    sb.from('conexiones_publicas').select('*'),
+    // Solo lo necesario para dibujar; el texto y las frases se piden al tocar una idea
+    sb.from('ideas_publicas').select('id,titulo,fuente_id,permite_conexiones,es_mia,fecha'),
+    sb.from('conexiones_publicas').select('id,idea_a,idea_b,relacion,es_mia'),
     sb.from('fuentes').select('id,nombre,tipo,fecha'),
     sb.from('temas').select('id,nombre').order('creado_en'),
     sb.from('temas_ideas').select('tema_id,idea_id'),
@@ -132,8 +133,18 @@ function alTocarNodo(n) {
   mostrarPanel(n.id);
 }
 
-function mostrarPanel(id) {
+const detalles = new Map(); // id → { texto, frases_originales }, ya descargados
+
+async function mostrarPanel(id) {
   const idea = datos.ideas.find((i) => i.id === id);
+  if (!detalles.has(id)) {
+    $('panel').innerHTML = '<p class="tenue">Cargando…</p>';
+    $('panel').classList.remove('oculto');
+    const { data } = await sb.from('ideas_publicas').select('texto,frases_originales').eq('id', id).maybeSingle();
+    detalles.set(id, data || { texto: '', frases_originales: [] });
+  }
+  if (seleccionada !== id && !conectandoDesde) return; // se tocó otra idea mientras cargaba
+  const { texto, frases_originales } = detalles.get(id);
   const fuente = datos.fuentes.get(idea.fuente_id);
   const tema = datos.temas.find((t) => t.id === datos.temaDeIdea.get(id));
   const relaciones = datos.conexiones
@@ -148,21 +159,60 @@ function mostrarPanel(id) {
     <button type="button" class="enlace cerrar" id="cerrar">✕</button>
     ${idea.es_mia ? '<span class="etiqueta mia">Tu idea</span> ' : ''}${tema ? `<span class="etiqueta">${esc(tema.nombre)}</span>` : ''}
     <h2 style="margin-top:.5rem">${esc(idea.titulo)}</h2>
-    <p>${esc(idea.texto)}</p>
-    ${idea.frases_originales.length ? `<ul class="frases">${idea.frases_originales.map((f) => `<li>“${esc(f)}”</li>`).join('')}</ul>` : ''}
+    <p style="white-space:pre-wrap">${esc(texto)}</p>
+    ${frases_originales.length ? `<ul class="frases">${frases_originales.map((f) => `<li>“${esc(f)}”</li>`).join('')}</ul>` : ''}
     <p class="tenue">${esc(fuente?.nombre)} · ${TIPOS[fuente?.tipo] || ''} · ${fechaCorta(idea.fecha)}</p>
     ${relaciones ? `<h3>Conexiones</h3><ul>${relaciones}</ul>` : ''}
     <div class="acciones">
       ${idea.permite_conexiones ? '<button type="button" id="conectar">Conectar con otra idea</button>' : '<p class="tenue">Esta idea no admite conexiones.</p>'}
+      ${idea.es_mia && idea.permite_conexiones ? '<button type="button" class="secundario" id="buscar-ia">Buscar conexiones con IA</button>' : ''}
       ${idea.es_mia ? '<a class="boton secundario" href="mis-reflexiones.html">Editar en Mis reflexiones</a>' : ''}
-    </div>`;
+    </div>
+    <div id="sugerencias-ia"></div>`;
   $('panel').classList.remove('oculto');
   $('cerrar').onclick = cerrarPanel;
   $('conectar')?.addEventListener('click', () => empezarConexion(id));
+  $('buscar-ia')?.addEventListener('click', (e) => buscarConIA(id, e.target));
   $('panel').querySelectorAll('[data-borrar]').forEach((b) => (b.onclick = async () => {
     if (!confirm('¿Quitar esta conexión que creaste?')) return;
     await sb.from('conexiones').delete().eq('id', b.dataset.borrar);
     await cargar(); mostrarPanel(id);
+  }));
+}
+
+// ---------- Conexiones sugeridas por la IA para una idea propia ----------
+async function buscarConIA(id, boton) {
+  boton.disabled = true;
+  const caja = $('sugerencias-ia');
+  caja.innerHTML = '<p class="tenue">Buscando ideas del mapa que dialoguen con esta… puede tardar unos segundos.</p>';
+  let sugerencias = [];
+  try {
+    ({ sugerencias } = await llamarFuncion('sugerir-conexiones', { ideas: [id] }));
+  } catch (err) {
+    boton.disabled = false;
+    caja.innerHTML = `<p class="error">${esc(err.message)}</p>`;
+    return;
+  }
+  if (!sugerencias.length) {
+    caja.innerHTML = '<p class="tenue">No encontramos conexiones claras por ahora.</p>';
+    return;
+  }
+  caja.innerHTML = '<h3>Sugerencias</h3>' + sugerencias.map((c, i) => `
+    <div class="tarjeta" data-i="${i}">
+      <p class="idea-titulo">${esc(c.titulo_existente)}</p>
+      <p class="tenue"><em>${esc(c.motivo)}</em></p>
+      <input class="relacion" maxlength="120" value="${esc(c.relacion)}" aria-label="Frase de relación">
+      <div class="acciones"><button type="button" class="crear">Conectar</button></div>
+    </div>`).join('');
+  caja.querySelectorAll('.crear').forEach((b) => (b.onclick = async () => {
+    const el = b.closest('[data-i]');
+    const c = sugerencias[el.dataset.i];
+    b.disabled = true;
+    const { error } = await sb.from('conexiones').insert({ idea_a: id, idea_b: c.existente, relacion: el.querySelector('.relacion').value.trim() });
+    if (error) { b.disabled = false; return alert('No se pudo conectar: ' + error.message); }
+    el.innerHTML = `<p class="tenue">Conectada con «${esc(c.titulo_existente)}».</p>`;
+    await cargar();
+    llamarFuncion('sugerir-tema').then((r) => { if (r.temas?.length) cargar(); }).catch(() => {});
   }));
 }
 

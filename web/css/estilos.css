@@ -58,7 +58,7 @@ button, .boton {
   background: var(--thread); color: #fff; border: 0; border-radius: 8px;
   padding: 0.65rem 1.1rem; min-height: 44px; text-decoration: none;
 }
-button.secundario { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
+button.secundario, .boton.secundario { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
 button.enlace { background: none; color: var(--muted); padding: 0; min-height: 0; font-weight: 400; }
 button:disabled { opacity: 0.5; cursor: wait; }
 .acciones { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.25rem; }

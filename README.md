@@ -33,7 +33,7 @@ web/                      páginas (HTML + JS sin compilación)
   mis-reflexiones.html    textos completos propios e ideas publicadas
   js/config.js            URL y clave pública de Supabase
   vendor/                 supabase-js y force-graph (copias locales)
-supabase/functions/       proponer-ideas, sugerir-tema (Edge Functions que llaman a Claude)
+supabase/functions/       proponer-ideas, sugerir-conexiones, sugerir-tema (Edge Functions que llaman a Claude)
 supabase/*.sql            archivos SQL
 ```
 

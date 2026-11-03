@@ -81,6 +81,15 @@
   <section id="listo" class="oculto">
     <h1>Listo</h1>
     <p id="listo-texto"></p>
+
+    <section id="con-mapa" class="oculto">
+      <h2>Conexiones con otras ideas del mapa</h2>
+      <p id="con-mapa-estado" class="tenue">Buscando ideas del mapa que dialoguen con las tuyas…</p>
+      <div id="con-mapa-lista"></div>
+      <div class="acciones oculto" id="con-mapa-acciones">
+        <button type="button" id="crear-con-mapa">Crear conexiones marcadas</button>
+      </div>
+    </section>
     <div class="acciones">
       <a class="boton" href="mapa.html">Ver el mapa</a>
       <a class="boton secundario" href="escribir.html">Escribir otra reflexión</a>
@@ -300,6 +309,7 @@ $('publicar').onclick = async (e) => {
     }
     idDe.set(elegidas[k], data.id);
   }
+  const conectables = filas.map((f, k) => (f.permite_conexiones ? idDe.get(elegidas[k]) : null)).filter(Boolean);
   const conexiones = [...document.querySelectorAll('#lista-conexiones .conexion:not(.oculto)')]
     .filter((c) => c.querySelector('.usar').checked && c.querySelector('.relacion').value.trim())
     .map((c) => ({
@@ -315,6 +325,7 @@ $('publicar').onclick = async (e) => {
     if (!error) llamarFuncion('sugerir-tema').catch(() => {});
   }
   terminar(`Publicaste ${filas.length} ${filas.length === 1 ? 'idea' : 'ideas'}.${aviso} Puedes editarlas durante 7 días desde «Mis reflexiones».`);
+  if (conectables.length) buscarConexionesMapa(conectables);
 };
 
 $('sin-publicar').onclick = () => terminar('Tu reflexión quedó guardada en privado, en «Mis reflexiones».');
@@ -324,6 +335,53 @@ function terminar(mensaje) {
   $('listo').classList.remove('oculto');
   $('listo-texto').textContent = mensaje;
   scrollTo(0, 0);
+}
+
+// ---------- Conexiones con otras ideas del mapa ----------
+async function buscarConexionesMapa(ids) {
+  $('con-mapa').classList.remove('oculto');
+  let sugerencias = [];
+  try {
+    ({ sugerencias } = await llamarFuncion('sugerir-conexiones', { ideas: ids }));
+  } catch {
+    $('con-mapa-estado').textContent = 'No se pudieron buscar conexiones ahora. Puedes crearlas desde el mapa.';
+    return;
+  }
+  if (!sugerencias.length) {
+    $('con-mapa-estado').textContent = 'Por ahora no encontramos conexiones claras con otras ideas del mapa. Puedes crearlas tú desde el mapa.';
+    return;
+  }
+  $('con-mapa-estado').textContent = 'Estas ideas de otras reflexiones dialogan con las tuyas. Marca las conexiones que quieras crear; puedes cambiar la frase.';
+  $('con-mapa-lista').innerHTML = sugerencias.map((c, i) => `
+    <div class="tarjeta conexion-mapa" data-i="${i}">
+      <label class="check"><input type="checkbox" class="usar" checked> <span>Crear esta conexión</span></label>
+      <p class="idea-titulo">${esc(c.titulo_nueva)}</p>
+      <input class="relacion" maxlength="120" value="${esc(c.relacion)}" aria-label="Frase de relación">
+      <p class="idea-titulo" style="margin-top:.5rem">${esc(c.titulo_existente)}</p>
+      <p class="tenue">${esc(c.tesis_existente)}</p>
+      <p class="tenue"><em>${esc(c.motivo)}</em></p>
+    </div>`).join('');
+  $('con-mapa-acciones').classList.remove('oculto');
+  $('crear-con-mapa').onclick = async (e) => {
+    const filas = [...document.querySelectorAll('.conexion-mapa')]
+      .filter((el) => el.querySelector('.usar').checked && el.querySelector('.relacion').value.trim())
+      .map((el) => {
+        const c = sugerencias[el.dataset.i];
+        return { idea_a: c.nueva, idea_b: c.existente, relacion: el.querySelector('.relacion').value.trim() };
+      });
+    if (!filas.length) return;
+    e.target.disabled = true;
+    const { error } = await sb.from('conexiones').insert(filas);
+    if (error) {
+      e.target.disabled = false;
+      $('con-mapa-estado').textContent = 'No se pudieron crear: ' + error.message;
+      return;
+    }
+    $('con-mapa-lista').innerHTML = '';
+    $('con-mapa-acciones').classList.add('oculto');
+    $('con-mapa-estado').textContent = filas.length === 1 ? 'Se creó 1 conexión con el mapa.' : `Se crearon ${filas.length} conexiones con el mapa.`;
+    llamarFuncion('sugerir-tema').catch(() => {});
+  };
 }
 
 // ---------- Modo «Generar más ideas» desde Mis reflexiones ----------
