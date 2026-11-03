@@ -42,7 +42,7 @@
   <!-- Pantalla intermedia: preguntas para profundizar -->
   <section id="profundizar" class="oculto">
     <h1>Profundiza tu reflexión</h1>
-    <p class="aviso">Tu texto todavía da para pocas ideas. Estas preguntas pueden ayudarte a desarrollar lo que empezaste a pensar. Responde las que quieras: tus respuestas se agregarán a tu reflexión, que sigue siendo privada.</p>
+    <p class="aviso">A tus ideas todavía les falta desarrollo. Estas preguntas pueden ayudarte a profundizar en lo que empezaste a pensar. Responde las que quieras: tus respuestas se agregarán a tu reflexión, que sigue siendo privada.</p>
     <div id="preguntas"></div>
     <div class="acciones">
       <button type="button" id="enviar-respuestas">Continuar</button>
@@ -154,18 +154,17 @@ $('paso1').onsubmit = async (e) => {
 };
 
 // ---------- Espera mientras trabaja la IA ----------
-const MENSAJES = ['Leyendo tu reflexión…', 'Buscando las ideas que hay en tu texto…', 'Ordenando cada idea…', 'Eligiendo tus frases originales…', 'Ya casi…'];
+const MENSAJES = ['Leyendo tu reflexión completa…', 'Buscando las palabras que repites y lo que más te mueve…', 'Agrupando tus frases por tema…', 'Escribiendo la idea central de cada tema…', 'Revisando que cada idea tenga un solo tema…', 'Ya casi…'];
 async function conEspera(promesa) {
   let i = 0;
   $('espera-texto').textContent = MENSAJES[0];
   $('espera').classList.remove('oculto');
-  const reloj = setInterval(() => { i = Math.min(i + 1, MENSAJES.length - 1); $('espera-texto').textContent = MENSAJES[i]; }, 6000);
+  const reloj = setInterval(() => { i = Math.min(i + 1, MENSAJES.length - 1); $('espera-texto').textContent = MENSAJES[i]; }, 9000);
   try { return await promesa; } finally { clearInterval(reloj); $('espera').classList.add('oculto'); }
 }
 
-const MIN_IDEAS = 3;
 let yaProfundizo = false;
-let propuesta = { ideas: [], conexiones: [], preguntas: [] };
+let propuesta = { ideas: [], conexiones: [], profundizar: false, preguntas: [] };
 
 async function proponer(texto) {
   $('paso1').classList.add('oculto');
@@ -175,7 +174,8 @@ async function proponer(texto) {
     propuesta = { ideas: [], conexiones: [], preguntas: [] };
     return mostrarIdeas(err.message);
   }
-  if (propuesta.ideas.length < MIN_IDEAS && !yaProfundizo && propuesta.preguntas.length) return mostrarPreguntas();
+  // Preguntas solo una vez, y solo si a las ideas les falta desarrollo
+  if (propuesta.profundizar && !yaProfundizo && propuesta.preguntas.length) return mostrarPreguntas();
   mostrarIdeas();
 }
 
@@ -252,7 +252,7 @@ function tarjeta({ titulo = '', idea = '', frases = [] }) {
   el.innerHTML = `
     <label class="check"><input type="checkbox" class="elegir"> <span>Publicar esta idea</span></label>
     <input class="titulo-idea" maxlength="120" placeholder="Título: resume tu idea en pocas palabras" value="${esc(titulo)}">
-    <textarea class="texto-idea" rows="5" maxlength="2000" placeholder="Tu idea: de dónde partes, por qué te importa, cómo lo piensas y a dónde llegas…">${esc(idea)}</textarea>
+    <textarea class="texto-idea" rows="9" maxlength="2000" placeholder="Tu idea central en una oración. Luego: de dónde partes, por qué te importa, cómo lo piensas y a dónde llegas…">${esc(idea)}</textarea>
     <ul class="frases">${frases.map((f) => `<li><span>${esc(f)}</span><button type="button" class="enlace quitar" aria-label="Quitar frase">✕</button></li>`).join('')}</ul>
     <label class="check tenue"><input type="checkbox" class="conexiones" checked> <span>Permitir que otras personas conecten esta idea</span></label>`;
   el.querySelector('.elegir').onchange = (e) => { el.classList.toggle('elegida', e.target.checked); actualizarConexiones(); };

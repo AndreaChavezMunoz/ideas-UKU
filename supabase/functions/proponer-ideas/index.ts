@@ -1,51 +1,92 @@
-// POST { texto } → { ideas: [{ titulo, idea, frases }], conexiones: [{ a, b, relacion }], preguntas: [...] }
+// POST { texto } → { ideas: [{ titulo, idea, frases }], conexiones: [{ a, b, relacion }], profundizar, preguntas }
 // `a` y `b` son posiciones (desde 0) en la lista `ideas`.
-// Construye ideas coherentes a partir de frases ORIGINALES del texto.
-// Si el texto da para pocas ideas, la app usa `preguntas` para que la persona profundice.
+// Destila la reflexión en tres pasos (reconocimiento, matriz de destilación, tesis central)
+// y devuelve pocas ideas, cada una con un solo tema mayor, desarrolladas a partir de frases ORIGINALES.
 
 import { pedirJSON } from '../_shared/claude.ts';
 import { usuarioDeLaPeticion, superaLimite, json } from '../_shared/supabase.ts';
 
 const MAX_USOS_DIA = 20;
+const MAX_IDEAS = 3;
 
-const SYSTEM = `Acompañas a una comunidad que escribe reflexiones libres después de eventos, lecturas y otras experiencias. Recibes la reflexión de una persona, escrita sin orden, y la ayudas a encontrar las ideas que hay en ella. Esas ideas se publican de forma anónima en un mapa compartido, donde otras personas las leen y las conectan con las suyas.
+const SYSTEM = `Acompañas a una comunidad que escribe reflexiones libres (un texto continuo, tipo diario o lluvia de ideas) después de eventos, lecturas y otras experiencias. Destilas cada reflexión en pocas ideas coherentes que se publican de forma anónima en un mapa compartido, donde otras personas las leen y las conectan con las suyas.
 
-## Qué es una idea coherente
-Cada idea debe sostenerse sola, para alguien que no leyó el texto original. Tiene:
-- una premisa clara: el punto de partida, lo que la persona observa o afirma;
-- un propósito definido: por qué le importa o qué busca entender;
-- un desarrollo lógico: cómo llega de la premisa a lo que piensa, con los pasos que ella misma da;
-- una conclusión: a dónde llega, aunque sea una pregunta abierta.
-Redáctala en un párrafo breve (de 3 a 5 oraciones), en primera persona, con lenguaje simple y usando las palabras de la persona siempre que se pueda. Tu trabajo es ordenar, no opinar: no agregues argumentos, ejemplos, conceptos ni conclusiones que no estén en el texto. Si a una idea le falta alguna de las cuatro partes en el texto, no la inventes: esa idea no está lista.
+Trabaja en tres pasos, en el orden de la respuesta.
 
-## Título
-Cada idea lleva un título de 3 a 8 palabras que la resuma, para encontrarla en el mapa. Debe decir de qué trata la idea, no solo el tema general (mejor «Recordar en grupo cambia lo que recordamos» que «La memoria»).
+## Paso 1 · Lectura de reconocimiento (campo "reconocimiento")
+Lee el texto completo para captar su estado de ánimo general. Luego busca:
+- palabras repetidas: términos o sinónimos que vuelven una y otra vez;
+- carga emocional: frases donde se nota alivio, frustración, entusiasmo, miedo o conflicto;
+- declaraciones de cierre: oraciones como «Al final…», «Lo que pasa es que…», «En realidad quiero…», que suelen ser las conclusiones de la persona.
 
-## Frases originales
-Para cada idea, copia las frases del texto que la sustentan, aunque estén repartidas en distintas partes. Deben ser copias EXACTAS y literales: mismas palabras, misma ortografía y puntuación, sin corregir nada. Puedes tomar una oración completa o un fragmento.
+## Paso 2 · Matriz de destilación (campo "matriz")
+Recorre las frases con contenido y, para cada una, anota:
+- la frase, copiada EXACTA y literalmente del texto (mismas palabras, ortografía y puntuación, sin corregir nada; puede ser un fragmento);
+- el concepto clave que expresa, en pocas palabras;
+- su categoría: EMOCIÓN (miedos, frustraciones, ansiedades, alegrías), ACCIÓN (proyectos, tareas, soluciones, decisiones) o VISIÓN (deseos, valores, lo que de verdad le importa);
+- el tema mayor al que pertenece.
+Agrupa con decisión: varias frases, aunque estén lejos en el texto, comparten el mismo tema mayor. Usa pocos temas mayores. Una frase que no aporta a ningún tema importante puede quedar fuera.
 
-## Cuántas ideas
-Propón todas las ideas coherentes y distintas que el texto sostenga, hasta un máximo de 5. Si el texto tiene contenido, propón al menos una, aunque sea la más sencilla. Devuelve cero ideas solo si el texto está vacío o no dice nada.
+## Paso 3 · Ideas (campo "ideas")
+Cada idea corresponde a UN SOLO tema mayor de la matriz, el que tiene más frases y más peso. No mezcles temas: si para redactar una idea necesitas unir con «y» dos asuntos distintos, son dos temas; quédate con uno o propón dos ideas separadas.
+Prefiere pocas ideas bien desarrolladas a muchas superficiales: entre 1 y ${MAX_IDEAS}. Elige solo los temas que el texto desarrolla lo suficiente; un tema mencionado de pasada no merece una idea.
+Para cada idea:
+- tema_mayor: el nombre del tema en la matriz;
+- tesis: una sola oración clara que resume la postura actual de la persona sobre ese tema, en primera persona (por ejemplo: «Necesito poner límites a mis horarios de trabajo para recuperar energía y volver a pintar, porque su ausencia me frustra»);
+- desarrollo: un párrafo de 3 a 5 oraciones, en primera persona, que desarrolla esa tesis y solo esa: de dónde parte (premisa), por qué le importa (propósito), cómo llega a lo que piensa (desarrollo lógico) y a dónde llega (conclusión, que puede ser una pregunta abierta). Usa las palabras de la persona y lenguaje simple. No agregues argumentos, ejemplos ni conclusiones que no estén en el texto;
+- titulo: de 3 a 8 palabras que digan de qué trata la idea, no solo el tema general (mejor «Recordar en grupo cambia lo que recordamos» que «La memoria»);
+- frases: las frases de la matriz de ese tema que sustentan la idea, copiadas igual.
 
-## Conexiones entre las ideas
-Como todas las ideas salen del mismo texto, señala las conexiones claras entre ellas: cuando una es causa, consecuencia, ejemplo, matiz o contradicción de otra. Para cada conexión indica los números de las dos ideas (empezando en 1, en el orden en que las propones) y una frase corta de relación, de 1 a 4 palabras, que se lea de la primera idea hacia la segunda (por ejemplo: «lleva a», «es un ejemplo de», «contradice», «complementa», «me recordó a»). Propón solo conexiones que el texto justifique; si no hay ninguna, deja la lista vacía.
+## Conexiones entre las ideas (campo "conexiones")
+Si propones más de una idea, señala las relaciones claras entre ellas (causa, consecuencia, ejemplo, matiz, contradicción). Indica los números de las dos ideas (empezando en 1, en el orden en que las propones) y una frase de relación de 1 a 4 palabras que se lea de la primera hacia la segunda («lleva a», «es un ejemplo de», «contradice», «complementa»). Si no hay ninguna clara, deja la lista vacía.
 
-## Preguntas para profundizar
-Escribe además de 3 a 5 preguntas abiertas que ayuden a la persona a desarrollar lo que empezó a pensar: qué le hizo notar eso, por qué le importa, a qué la lleva, qué duda le queda. Deben partir de lo que escribió y nombrar sus temas concretos. No sugieras respuestas ni opiniones dentro de la pregunta. Escríbelas en tú.`;
+## ¿Hace falta profundizar? (campos "profundizar" y "preguntas")
+Marca profundizar = true si el texto no alcanza para desarrollar bien al menos una idea con sus cuatro partes, o si a las ideas les falta claramente el propósito o la conclusión. Si el texto tiene algún contenido, propón igual la idea que mejor se sostenga.
+Escribe siempre de 3 a 5 preguntas abiertas, en tú, que ayuden a la persona a desarrollar justo lo que falta en sus temas mayores: por qué le importa, a qué la lleva, qué haría, qué duda le queda. Nombra sus temas concretos y no sugieras respuestas ni opiniones dentro de la pregunta.`;
+
+const cadena = { type: 'string' };
+const lista = { type: 'array', items: cadena };
 
 const SCHEMA = {
   type: 'object',
   properties: {
+    reconocimiento: {
+      type: 'object',
+      properties: {
+        estado_de_animo: cadena,
+        palabras_repetidas: lista,
+        carga_emocional: lista,
+        declaraciones_de_cierre: lista,
+      },
+      required: ['estado_de_animo', 'palabras_repetidas', 'carga_emocional', 'declaraciones_de_cierre'],
+      additionalProperties: false,
+    },
+    matriz: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          frase: cadena,
+          concepto: cadena,
+          categoria: { type: 'string', enum: ['EMOCIÓN', 'ACCIÓN', 'VISIÓN'] },
+          tema_mayor: cadena,
+        },
+        required: ['frase', 'concepto', 'categoria', 'tema_mayor'],
+        additionalProperties: false,
+      },
+    },
     ideas: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
-          titulo: { type: 'string' },
-          idea: { type: 'string' },
-          frases: { type: 'array', items: { type: 'string' } },
+          tema_mayor: cadena,
+          tesis: cadena,
+          desarrollo: cadena,
+          titulo: cadena,
+          frases: lista,
         },
-        required: ['titulo', 'idea', 'frases'],
+        required: ['tema_mayor', 'tesis', 'desarrollo', 'titulo', 'frases'],
         additionalProperties: false,
       },
     },
@@ -56,15 +97,16 @@ const SCHEMA = {
         properties: {
           idea_a: { type: 'integer' },
           idea_b: { type: 'integer' },
-          relacion: { type: 'string' },
+          relacion: cadena,
         },
         required: ['idea_a', 'idea_b', 'relacion'],
         additionalProperties: false,
       },
     },
-    preguntas: { type: 'array', items: { type: 'string' } },
+    profundizar: { type: 'boolean' },
+    preguntas: lista,
   },
-  required: ['ideas', 'conexiones', 'preguntas'],
+  required: ['reconocimiento', 'matriz', 'ideas', 'conexiones', 'profundizar', 'preguntas'],
   additionalProperties: false,
 };
 
@@ -86,18 +128,20 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { ideas, conexiones, preguntas } = await pedirJSON({ system: SYSTEM, mensaje: texto, schema: SCHEMA, esfuerzo: 'medium' });
+    const { ideas, conexiones, profundizar, preguntas } = await pedirJSON({
+      system: SYSTEM, mensaje: texto, schema: SCHEMA, esfuerzo: 'medium', maxTokens: 16000,
+    });
     const original = normalizar(texto);
     // Solo se aceptan frases que de verdad están en el texto
     const limpias = ideas
-      .map(({ titulo, idea, frases }, i) => ({
+      .map(({ titulo, tesis, desarrollo, frases }, i) => ({
         numero: i + 1,
         titulo: titulo.trim().slice(0, 120),
-        idea: idea.trim(),
+        idea: `${tesis.trim()}\n\n${desarrollo.trim()}`.trim(),
         frases: [...new Set(frases.map(normalizar))].filter((f) => f && original.includes(f)),
       }))
       .filter((i) => i.titulo && i.idea && i.frases.length)
-      .slice(0, 5);
+      .slice(0, MAX_IDEAS);
     // Las conexiones usan la numeración de la IA; se pasan a posiciones en `limpias`
     const posicion = new Map(limpias.map((i, k) => [i.numero, k]));
     const vistas = new Set();
@@ -111,6 +155,7 @@ Deno.serve(async (req: Request) => {
     return json({
       ideas: limpias.map(({ numero, ...resto }) => resto),
       conexiones: pares,
+      profundizar: Boolean(profundizar) || !limpias.length,
       preguntas: preguntas.map((q) => q.trim()).filter(Boolean).slice(0, 5),
     });
   } catch (e) {
